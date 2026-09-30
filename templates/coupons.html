@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block page_title %}Coupons{% endblock %}
+{% block content %}
+<div class="stats-grid">
+    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available_points|floatformat:2 }}</strong><small>Travel date started</small></div>
+    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending_points|floatformat:2 }}</strong><small>Before travel start date</small></div>
+    <div class="stat blue"><span>TOTAL COUPON POINTS</span><strong>{{ total_coupon_points|floatformat:2 }}</strong><small>Available + Pending</small></div>
+</div>
+<div class="three-col">
+<div class="card"><div class="card-head"><h2>Earn Coupon</h2></div>
+<form method="post" action="{% url 'earn_coupon' %}">{% csrf_token %}
+<label>CUSTOMER ID *</label><input name="customer_id" placeholder="e.g. CL-1001" required>
+<label>BOOKING REFERENCE (S PNR) *</label><input name="booking_ref" placeholder="e.g. BK-2024-001" required>
+<p class="muted">Coupon points are calculated automatically as <b>passenger booking amount ÷ 100</b>. The coupon remains PENDING until the travel start date.</p>
+<button class="btn success-btn full">EARN COUPON</button>
+</form></div>
+
+<div class="card"><div class="card-head"><h2>Release Coupon</h2></div>
+<form method="post" action="{% url 'release_coupon' %}">{% csrf_token %}
+<label>BOOKING REFERENCE</label><input name="booking_ref" placeholder="BK-2024-001" required>
+<button class="btn success-btn full">RELEASE COUPON</button>
+</form></div>
+
+<div class="card"><div class="card-head"><h2>Quick Actions</h2></div>
+<!-- <button class="btn primary full" onclick="window.location='{% url 'client_portal' %}'">CHECK BALANCE</button> -->
+<button class="btn success-btn full" onclick="document.getElementById('redeemForm').scrollIntoView()">REDEEM COUPON</button>
+<button class="btn danger full" onclick="document.getElementById('reverseForm').scrollIntoView()">REVERSE COUPON</button>
+</div>
+</div>
+
+<div class="card" id="redeemForm"><div class="card-head"><h2>Redeem Coupon</h2></div>
+<form method="post" action="{% url 'redeem_coupon' %}" class="form-grid inline-form">{% csrf_token %}
+<div><label>CUSTOMER ID</label><input name="customer_id" required></div><div><label>NEXT BOOKING / PNR</label><input name="booking_ref" required></div><button class="btn success-btn">REDEEM AVAILABLE</button>
+</form></div>
+
+<div class="card" id="reverseForm"><div class="card-head"><h2>Reverse Coupon</h2></div>
+<form method="post" action="{% url 'reverse_coupon' %}" class="form-grid inline-form">{% csrf_token %}
+<div><label>BOOKING REFERENCE</label><input name="booking_ref" required></div><button class="btn danger">REVERSE COUPON</button>
+</form></div>
+
+<div class="card"><div class="card-head"><h2>Coupon Records</h2><span class="count-pill">AVAILABLE + PENDING</span></div>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>CUSTOMER</th><th>PASSENGER</th><th>BOOKING</th><th>POINTS</th><th>STATUS</th><th>TRAVEL START</th><th>TRAVEL END</th></tr></thead><tbody>
+{% for c in coupons %}<tr><td>{{ c.id }}</td><td>{{ c.customer_name }}<small>{{ c.customer_id }}</small></td><td>{{ c.passenger_name|default:"-" }}<small>{{ c.passenger_id|default:"-" }}</small></td><td>{{ c.booking_ref }}</td><td><b>{{ c.points|floatformat:2 }}</b></td><td><span class="badge {% if c.status == 'AVAILABLE' %}success{% else %}pending{% endif %}">{{ c.status }}</span></td><td>{{ c.travel_start_date|default:c.unlock_date|default:"-" }}</td><td>{{ c.travel_end_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="8">No coupons.</td></tr>{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

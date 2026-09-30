@@ -1,0 +1,18 @@
+Coupon Management System - Coupon/DB Fix Notes
+
+Fixed in this build:
+1. Coupon model now includes existing MariaDB `coupons.is_released` column with default=False.
+2. Migration 0006 safely creates the column only when it does not exist.
+3. Coupon storage READ/WRITE always supplies is_released, preventing MariaDB 1364 errors.
+4. Earn Coupon creates PENDING before travel date and AVAILABLE on/after travel date.
+5. Release Coupon sets is_released=1 and available_date when travel has started.
+6. Redeem Coupon records redemption allocations and ledger transaction while preserving release state.
+7. Reverse Coupon restores allocated coupon balances, marks the redemption REVERSED, and writes a reversal ledger row.
+8. Coupon read data exposes points, passenger ID, travel start/end, and release state consistently.
+
+Run after extracting:
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+
+If your XAMPP database is coupon_management and MariaDB is 10.4.x, keep the included db_compat.py/settings.py compatibility patch.

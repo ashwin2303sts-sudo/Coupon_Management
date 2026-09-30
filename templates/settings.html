@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block page_title %}Settings{% endblock %}
+{% block content %}
+<div class="card settings-card"><div class="card-head"><h2>Global Configuration</h2></div>
+<form method="post" action="{% url 'save_settings' %}">{% csrf_token %}
+<div class="three-col">
+<div><label>MIN REDEMPTION AMOUNT (₹)</label><input type="number" step="0.01" name="min_redemption_amount" value="{{ config.min_redemption_amount }}"></div>
+<div><label>MAX REDEMPTION AMOUNT (₹)</label><input type="number" step="0.01" name="max_redemption_amount" value="{{ config.max_redemption_amount }}"></div>
+<div><label>COUPON EXPIRY DAYS</label><input type="number" name="coupon_expiry_days" value="{{ config.coupon_expiry_days }}"></div>
+</div>
+<div class="two-col">
+<div><label>ALLOW PARTIAL REDEMPTION</label><select name="allow_partial_redemption"><option {% if config.allow_partial_redemption == "Yes" %}selected{% endif %}>Yes</option><option {% if config.allow_partial_redemption == "No" %}selected{% endif %}>No</option></select></div>
+<div><label>ALLOW COMBINED OFFERS</label><select name="allow_combined_offers"><option {% if config.allow_combined_offers == "Yes" %}selected{% endif %}>Yes</option><option {% if config.allow_combined_offers == "No" %}selected{% endif %}>No</option></select></div>
+</div>
+<button class="btn primary">SAVE SETTINGS</button>
+</form></div>
+{% endblock %}

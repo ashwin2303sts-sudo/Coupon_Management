@@ -1,0 +1,7 @@
+{
+  "min_redemption_amount": 100,
+  "max_redemption_amount": 50000,
+  "coupon_expiry_days": 365,
+  "allow_partial_redemption": "Yes",
+  "allow_combined_offers": "No"
+}

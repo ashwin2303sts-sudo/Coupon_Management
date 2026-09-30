@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+<div class="stats-grid">
+    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available|floatformat:2 }}</strong><small>Travel date started</small></div>
+    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending|floatformat:2 }}</strong><small>Before travel start date</small></div>
+    <div class="stat blue"><span>TOTAL COUPON POINTS</span><strong>{{ total_coupon_points|floatformat:2 }}</strong><small>Available + Pending</small></div>
+    <div class="stat red"><span>TOTAL BOOKINGS</span><strong>{{ booking_count }}</strong><small>{{ customer_count }} Clients / Customers</small></div>
+</div>
+
+<div class="two-col">
+    <div class="card">
+        <div class="card-head"><h2>Recent Transactions</h2></div>
+        {% for item in recent %}
+        <div class="transaction">
+            <div>
+                <b>{{ item.type }}</b>
+                <small>{{ item.customer_id }} • {{ item.booking_ref }} • {{ item.date }}</small>
+            </div>
+            <div class="transaction-right">
+                <strong class="{% if item.amount < 0 %}amount-red{% endif %}">₹{{ item.amount|floatformat:2 }}</strong>
+                <span class="badge {% if item.status == 'SUCCESS' %}success{% else %}pending{% endif %}">{{ item.status }}</span>
+            </div>
+        </div>
+        {% empty %}<p class="muted">No transactions yet.</p>{% endfor %}
+    </div>
+
+    <div class="card">
+        <div class="card-head"><h2>System Status</h2></div>
+        <div class="status-list">
+            <div><b>Django Backend</b><span class="badge success">ONLINE</span></div>
+            <div><b>MySQL Database</b><span class="badge success">CONNECTED</span></div>
+            <div><b>Active Rules</b><span class="badge info">{{ request|yesno:"ACTIVE,ACTIVE" }}</span></div>
+            <div><b>Storage</b><span class="muted">MySQL / coupon_management</span></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coupon Management</title>
+<link rel="stylesheet" href="{% static 'css/style.css' %}?v=30">
+</head>
+<body class="login-page">
+    <div class="flight-splash" id="flightSplash">
+        <div class="sky-glow"></div>
+        <div class="airplane-3d" aria-hidden="true">✈</div>
+        <div class="splash-title">Coupon Management</div>
+    </div>
+
+    <div class="login-card">
+        <div class="login-logo">✈</div>
+        <div class="login-kicker">ADMIN PORTAL</div>
+        <h1>Coupon Management</h1>
+        <p>Secure coupon &amp; booking management</p>
+
+        {% if messages %}
+            {% for message in messages %}<div class="alert error">{{ message }}</div>{% endfor %}
+        {% endif %}
+
+        <form method="post">
+            {% csrf_token %}
+            <label>USERNAME</label>
+            <input name="username" placeholder="Enter admin username" autocomplete="username" required>
+            <label>PASSWORD</label>
+            <input type="password" name="password" placeholder="Enter admin password" autocomplete="current-password" required>
+            <button class="btn primary full login-submit" type="submit">LOGIN TO ADMIN</button>
+        </form>
+
+        <div class="demo-box">
+            <strong>Admin Login</strong>
+            <span>Username: <b>admin</b></span>
+            <span>Password: <b>admin123</b></span>
+        </div>
+    </div>
+<script>
+window.addEventListener("load", function () {
+    setTimeout(function () {
+        document.body.classList.add("flight-complete");
+    }, 2800);
+    setTimeout(function () {
+        const splash = document.getElementById("flightSplash");
+        if (splash) splash.remove();
+    }, 3600);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+[
+  {
+    "id": "USR-001",
+    "username": "admin",
+    "password": "admin123",
+    "name": "Super Admin",
+    "role": "Super Admin",
+    "status": "ACTIVE"
+  }
+]

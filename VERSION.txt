@@ -1,0 +1,7 @@
+Coupon Management XAMPP - Final Coupon Flow Fix v2
+
+This build fixes the MariaDB 1364 is_released error at both levels:
+1. Django model/database default (migration 0007).
+2. Earn/Release/Redeem/Reverse use direct Django ORM transactions so the release flag is always explicitly written.
+
+Use this project instead of older Coupon_Management_XAMPP_Fixed folders.

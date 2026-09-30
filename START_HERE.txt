@@ -1,0 +1,34 @@
+COUPON MANAGEMENT - START HERE
+
+1. Start XAMPP -> Start MySQL.
+2. Open phpMyAdmin -> Import:
+   database/xampp_coupon_management.sql
+3. Open THIS FOLDER in VS Code (the folder containing manage.py).
+4. Open PowerShell in this folder.
+5. Create a virtual environment:
+   python -m venv venv
+6. Activate it:
+   .\venv\Scripts\Activate.ps1
+7. Install packages:
+   python -m pip install --upgrade pip
+   python -m pip install -r requirements.txt
+8. Copy .env.example to .env:
+   copy .env.example .env
+   For normal XAMPP root with no password, leave MYSQL_PASSWORD empty.
+9. Create/update Django tables:
+   python manage.py migrate
+10. Start the website:
+   python manage.py runserver
+11. Open:
+   http://127.0.0.1:8000/
+
+LOGIN:
+Username: admin
+Password: admin123
+
+IMPORTANT:
+- This project is configured for XAMPP MariaDB 10.4.x.
+- Do NOT install Django 6.x or change the Django requirement to a newer
+  version, because newer Django versions require newer MariaDB releases.
+- If you already have an old venv, delete it and recreate it after extracting
+  this ZIP.

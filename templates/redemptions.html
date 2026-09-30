@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block page_title %}Redemptions{% endblock %}
+{% block content %}
+<div class="rdm-page">
+    <div class="rdm-page-header">
+        <div>
+            <h2>Redemptions</h2>
+            <p>Track completed coupon usage or add manual redemption records.</p>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+            <button class="btn success-btn" onclick="openModal('addRedemptionModal')">+ ADD REDEMPTION</button>
+            {% if total_count > 0 %}
+            <form method="post" action="{% url 'clear_all_redemptions' %}" onsubmit="return confirm('Are you sure you want to remove ALL redemption records?')">
+                {% csrf_token %}
+                <button class="btn danger" type="submit">CLEAR ALL</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="rdm-filter-card">
+        <form method="get" class="rdm-filter-form">
+            <div class="rdm-field-group rdm-search-group">
+                <label>SEARCH</label>
+                <div class="rdm-input-with-icon">
+                    <span class="rdm-search-symbol">⌕</span>
+                    <input type="text" name="q" value="{{ search }}" placeholder="Redemption ID, customer, booking or coupon">
+                </div>
+            </div>
+
+            <div class="rdm-field-group">
+                <label>COUPON CODE</label>
+                <div class="rdm-select-box">
+                    <select name="coupon_code">
+                        <option value="">All</option>
+                        {% for code in available_coupon_codes %}
+                        <option value="{{ code }}" {% if coupon_code_filter == code %}selected{% endif %}>{{ code }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="rdm-field-group">
+                <label>STATUS</label>
+                <div class="rdm-select-box">
+                    <select name="status">
+                        <option value="">All</option>
+                        {% for st in available_statuses %}
+                        <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>{{ st }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="rdm-field-group">
+                <label>FROM DATE</label>
+                <input class="rdm-date-input" type="date" name="from_date" value="{{ from_date }}">
+            </div>
+
+            <div class="rdm-field-group">
+                <label>TO DATE</label>
+                <input class="rdm-date-input" type="date" name="to_date" value="{{ to_date }}">
+            </div>
+
+            <div class="rdm-btn-group">
+                <button type="submit" class="rdm-search-btn">SEARCH</button>
+                <a class="rdm-clear-btn" href="{% url 'redemptions' %}">CLEAR</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="rdm-table-card">
+        <div class="rdm-table-title">
+            <div>
+                <h3>Redemption Records</h3>
+                <span>{{ total_count }} record{{ total_count|pluralize }}</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="rdm-data-table">
+                <thead>
+                    <tr>
+                        <th>S.NO</th>
+                        <th>REDEMPTION ID</th>
+                        <th>DATE &amp; TIME</th>
+                        <th>CUSTOMER</th>
+                        <th>BOOKING ID</th>
+                        <th>COUPON CODE</th>
+                        <th>REDEEMED AMOUNT</th>
+                        <th>STATUS</th>
+                        <th>REDEMPTION TYPE</th>
+                        <th>ACTIONS</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for r in redemptions %}
+                    <tr>
+                        <td>{{ start_index|add:forloop.counter0 }}</td>
+                        <td><span class="rdm-id">{{ r.id }}</span></td>
+                        <td><div class="rdm-datetime-stack"><strong>{{ r.date }}</strong><small>{{ r.time }}</small></div></td>
+                        <td>{{ r.customer }}</td>
+                        <td>{{ r.booking_id }}</td>
+                        <td><span class="coupon-pill">{{ r.coupon_code }}</span></td>
+                        <td class="rdm-amount">{{ r.formatted_redeemed }}</td>
+                        <td><span class="status-pill pill-{{ r.status_slug }}">{{ r.status }}</span></td>
+                        <td>{{ r.redemption_type }}</td>
+                        <td>
+                            <form method="post" action="{% url 'delete_redemption' %}" onsubmit="return confirm('Delete this redemption record?')">
+                                {% csrf_token %}
+                                <input type="hidden" name="id" value="{{ r.id }}">
+                                <button class="btn danger" type="submit" style="padding:4px 8px;font-size:11px;">DELETE</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="10" class="rdm-no-records">
+                        <div class="empty-icon" style="font-size:24px;margin-bottom:8px;">💳</div>
+                        <strong>No redemption records found</strong>
+                        <p style="margin-top:6px;color:#78869b;">Click <b>+ ADD REDEMPTION</b> above to add a new record, or redeem coupons from the Coupons page.</p>
+                    </td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="rdm-table-footer">
+            <div>Showing {{ start_index }} to {{ end_index }} of {{ total_count }} entries</div>
+            <div class="rdm-footer-pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?q={{ search|urlencode }}&coupon_code={{ coupon_code_filter|urlencode }}&status={{ status_filter|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}&page={{ page_obj.previous_page_number }}">Previous</a>
+                {% endif %}
+                {% for number in page_obj.paginator.page_range %}
+                    <a class="{% if number == page_obj.number %}active{% endif %}" href="?q={{ search|urlencode }}&coupon_code={{ coupon_code_filter|urlencode }}&status={{ status_filter|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}&page={{ number }}">{{ number }}</a>
+                {% endfor %}
+                {% if page_obj.has_next %}
+                    <a href="?q={{ search|urlencode }}&coupon_code={{ coupon_code_filter|urlencode }}&status={{ status_filter|urlencode }}&from_date={{ from_date|urlencode }}&to_date={{ to_date|urlencode }}&page={{ page_obj.next_page_number }}">Next</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="addRedemptionModal">
+    <div class="modal wide">
+        <h2>Add Redemption Record</h2>
+        <form method="post" action="{% url 'add_redemption' %}">
+            {% csrf_token %}
+            <div class="form-grid">
+                <div>
+                    <label>CUSTOMER NAME / ID *</label>
+                    <input name="customer" list="customerList" placeholder="e.g. Rahul or CL-1001" required>
+                    <datalist id="customerList">
+                        {% for c in customers %}
+                        <option value="{{ c.name }}">{{ c.id }} - {{ c.name }}</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div>
+                    <label>BOOKING ID *</label>
+                    <input name="booking_id" placeholder="e.g. BK001" required>
+                </div>
+                <div>
+                    <label>COUPON CODE</label>
+                    <input name="coupon_code" list="couponList" placeholder="e.g. SAVE20">
+                    <datalist id="couponList">
+                        {% for cp in coupons %}
+                        <option value="{{ cp.coupon_code|default:cp.id }}">{{ cp.coupon_code }} (₹{{ cp.amount }})</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div>
+                    <label>REDEEMED AMOUNT (₹) *</label>
+                    <input type="number" step="0.01" min="0.01" name="redeemed_amount" placeholder="e.g. 500.00" required>
+                </div>
+                <div>
+                    <label>STATUS</label>
+                    <select name="status">
+                        <option value="Completed" selected>Completed</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div>
+                    <label>REDEMPTION TYPE</label>
+                    <select name="redemption_type">
+                        <option value="Manual" selected>Manual</option>
+                        <option value="Automatic">Automatic</option>
+                        <option value="Coupon Redemption">Coupon Redemption</option>
+                    </select>
+                </div>
+                <div>
+                    <label>DATE</label>
+                    <input type="date" name="date">
+                </div>
+                <div>
+                    <label>TIME</label>
+                    <input type="time" name="time">
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:16px;">
+                <button type="button" class="btn secondary" onclick="closeModal('addRedemptionModal')">CANCEL</button>
+                <button class="btn success-btn" type="submit">SAVE REDEMPTION</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

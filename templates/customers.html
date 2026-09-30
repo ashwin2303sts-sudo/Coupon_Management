@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block page_title %}Customers{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-head">
+    <h2>Customers Management</h2>
+    <button class="btn primary" onclick="openModal('customerAddModal')" type="button">+ ADD CUSTOMER</button>
+  </div>
+  <div class="table-wrap"><table class="customer-bookings-table"><thead><tr><th>CLIENT ID</th><th>PASSENGER ID</th><th>BOOKING TYPE</th><th>TRAVEL TYPE</th><th>TRAVEL START DATE</th><th>TRAVEL END DATE</th><th>BOOKED DATE</th><th>AMOUNT</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+  <tbody>{% for c in customers %}<tr>
+    <td><b>{{ c.id }}</b></td><td>{{ c.passenger_id }}</td><td>{{ c.booking_type }}</td><td>{{ c.travel_type }}</td><td>{{ c.travel_start }}</td><td>{{ c.travel_end }}</td><td>{{ c.booked_date }}</td><td class="money">₹{{ c.amount|floatformat:2 }}</td><td><span class="badge {% if c.status == 'ACTIVE' %}success{% else %}pending{% endif %}">{{ c.status }}</span></td>
+    <td><button class="btn secondary" onclick="openEditCustomer('{{ c.id|escapejs }}','{{ c.edit_passenger_id|escapejs }}','{{ c.name|escapejs }}','{{ c.email|escapejs }}','{{ c.phone|escapejs }}','{{ c.status|escapejs }}')">EDIT</button>
+    <form method="post" action="{% url 'delete_customer' %}" style="display:inline" onsubmit="return confirm('Delete this customer?')">{% csrf_token %}<input type="hidden" name="id" value="{{ c.id }}"><button class="btn danger" type="submit">DELETE</button></form></td>
+  </tr>{% empty %}<tr><td colspan="10">No customer records found.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+
+<div class="modal-overlay" id="customerAddModal"><div class="modal wide"><h2>Add Customer</h2>
+<form method="post" action="{% url 'add_customer' %}">{% csrf_token %}<input type="hidden" name="return_to" value="customers"><div class="form-grid"><div><label>Client ID *</label><input name="id" placeholder="e.g. CL-1001" required></div><div><label>Passenger ID *</label><input name="passenger_id" placeholder="e.g. PAX-001" required></div><div><label>Name *</label><input name="name" placeholder="Full Name" required></div><div><label>Email *</label><input type="email" name="email" placeholder="name@example.com" required></div><div><label>Phone *</label><input type="tel" name="phone" placeholder="+91 9876543210" required></div></div><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal('customerAddModal')">CANCEL</button><button class="btn primary">ADD CUSTOMER</button></div></form></div></div>
+
+<div class="modal-overlay" id="customerEditModal"><div class="modal wide"><h2>Edit Customer</h2>
+<form method="post" action="{% url 'edit_customer' %}">{% csrf_token %}
+<input type="hidden" id="editCustomerId" name="id"><div class="form-grid"><div><label>Client ID</label><input id="editCustomerIdDisplay" disabled></div><div><label>Passenger ID *</label><input id="editCustomerPassengerId" name="passenger_id" required></div><div><label>Name *</label><input id="editCustomerName" name="name" required></div><div><label>Email *</label><input id="editCustomerEmail" type="email" name="email" required></div><div><label>Phone *</label><input id="editCustomerPhone" type="tel" name="phone" required></div><div><label>Status</label><select id="editCustomerStatus" name="status"><option>ACTIVE</option><option>INACTIVE</option></select></div></div>
+<div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal('customerEditModal')">CANCEL</button><button class="btn primary">SAVE CHANGES</button></div>
+</form></div></div>
+<script>
+function openEditCustomer(id,passengerId,name,email,phone,status){document.getElementById('editCustomerId').value=id;document.getElementById('editCustomerIdDisplay').value=id;document.getElementById('editCustomerPassengerId').value=passengerId;document.getElementById('editCustomerName').value=name;document.getElementById('editCustomerEmail').value=email;document.getElementById('editCustomerPhone').value=phone;document.getElementById('editCustomerStatus').value=status;openModal('customerEditModal');}
+</script>
+{% endblock %}

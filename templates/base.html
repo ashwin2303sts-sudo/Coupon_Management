@@ -1,0 +1,72 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coupon Management System</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=24">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand"><span class="brand-icon">✈</span><span>COUPON</span></div>
+
+        <nav>
+            <div class="nav-title">MAIN</div>
+            <a class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}">📊 <span>Dashboard</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'client_portal' %}active{% endif %}" href="{% url 'client_portal' %}">▦ <span>Client Portal</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'customers' %}active{% endif %}" href="{% url 'customers' %}">👥 <span>Customers</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'coupons' %}active{% endif %}" href="{% url 'coupons' %}">🎁 <span>Coupons</span></a>
+
+            <div class="nav-title">MANAGEMENT</div>
+            <a class="nav-item {% if request.resolver_match.url_name == 'bookings' %}active{% endif %}" href="{% url 'bookings' %}">🗓 <span>Bookings</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'redemptions' %}active{% endif %}" href="{% url 'redemptions' %}">💳 <span>Redemptions</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'ledger' %}active{% endif %}" href="{% url 'ledger' %}">📋 <span>Ledger</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'excel_upload' %}active{% endif %}" href="{% url 'excel_upload' %}">📤 <span>Excel Upload</span></a>
+
+            <div class="nav-title">ADMIN</div>
+            <a class="nav-item {% if request.resolver_match.url_name == 'rules' %}active{% endif %}" href="{% url 'rules' %}">⚙ <span>Rules</span></a>
+            <a class="nav-item {% if request.resolver_match.url_name == 'settings' %}active{% endif %}" href="{% url 'settings' %}">🔧 <span>Settings</span></a>
+            <button class="nav-item logout-link" onclick="openLogout()">🚪 <span>Sign Out / Logout</span></button>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <header class="topbar">
+            <button class="menu-btn" onclick="toggleSidebar()">☰ Menu</button>
+            <h1>{% block page_title %}Dashboard{% endblock %}</h1>
+            <div class="top-actions">
+                <span class="admin-pill">👤 {{ current_user }}</span>
+                <button class="logout-btn" onclick="openLogout()">LOGOUT</button>
+            </div>
+        </header>
+
+        <section class="content">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+            {% block content %}{% endblock %}
+        </section>
+    </main>
+</div>
+
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal">
+        <h2>Sign Out</h2>
+        <p>Are you sure you want to log out of your session?</p>
+        <div class="modal-actions">
+            <button class="btn secondary" onclick="closeLogout()">BACK</button>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button class="btn danger" type="submit">ARE YOU SURE</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/app.js' %}"></script>
+</body>
+</html>
