@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from .decorators import admin_required
 from .models import Coupon, Redemption, RedemptionAllocation, Ledger, Customer, Booking
-from .storage import read, write, now, new_id, money, decimal_value
+from .storage import read, write, now, new_id, money, decimal_value, date_value, get_or_create_customer
 
 
 def calculate_coupon(booking):
@@ -1058,12 +1058,12 @@ def excel_upload(request):
             messages.error(request, "Please select an Excel file.")
             return redirect("excel_upload")
 
+        workbook = None
         try:
             from openpyxl import load_workbook
-            wb = load_workbook(upload, data_only=True)
-            ws = wb.active
+            workbook = load_workbook(upload, read_only=True, data_only=True)
+            ws = workbook.active
             headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
-            rows = [dict(zip(headers, row)) for row in ws.iter_rows(min_row=2, values_only=True)]
 
             required = {"Client ID", "S PNR"}
             missing = required - set(headers)
@@ -1071,19 +1071,19 @@ def excel_upload(request):
                 messages.error(request, "Missing required columns: " + ", ".join(sorted(missing)))
                 return redirect("excel_upload")
 
-            bookings = read("bookings")
-            customers = read("customers")
-            coupons = read("coupons")
-            ledger_data = read("ledger")
-            added = 0
+            existing_pnrs = set(Booking.objects.values_list("pnr", flat=True))
+            imported_pnrs = set()
+            rows_to_import = []
 
-            for row in rows:
+            for values in ws.iter_rows(min_row=2, values_only=True):
+                row = dict(zip(headers, values))
                 spnr = str(row.get("S PNR") or "").strip()
                 client_id = str(row.get("Client ID") or "").strip()
                 if not spnr or not client_id:
                     continue
-                if any(b.get("s_pnr") == spnr for b in bookings):
+                if spnr in existing_pnrs or spnr in imported_pnrs:
                     continue
+                imported_pnrs.add(spnr)
 
                 client = str(row.get("Client") or client_id).strip()
                 legacy_type = str(row.get("Booking Type") or "").strip()
@@ -1093,46 +1093,62 @@ def excel_upload(request):
                 travel_type = str(row.get("Travel Type") or "").strip()
                 if not travel_type and legacy_type in {"Round Trip", "One Way"}:
                     travel_type = legacy_type
-                booking = {
+                rows_to_import.append({
                     "s_pnr": spnr,
+                    "client_id": client_id,
+                    "client": client,
+                    "email": str(row.get("Email") or ""),
+                    "mobile": str(row.get("Mobile") or ""),
                     "passenger_id": str(row.get("Passenger ID") or "").strip(),
                     "passenger_name": str(row.get("Pax Name") or "").strip(),
-                    "client": client,
-                    "client_id": client_id,
                     "sector": str(row.get("Sector") or "").strip(),
                     "booking_type": booking_method,
                     "travel_type": travel_type,
                     "airline_pnr": str(row.get("Airline PNR") or "").strip(),
+                    "status": str(row.get("Status") or "Confirmed").strip(),
                     "net_amount": money(row.get("Net Amount") or 0),
-                    "travel_date": str(row.get("Travel Start Date") or row.get("Date of Travel") or "").split(" ")[0],
-                    "end_date": str(row.get("Travel End Date") or "").split(" ")[0],
-                    "booked_date": str(row.get("Booked Date") or date.today()).split(" ")[0],
-                }
-                bookings.insert(0, booking)
+                    "travel_date": date_value(row.get("Travel Start Date") or row.get("Date of Travel")),
+                    "end_date": date_value(row.get("Travel End Date")),
+                    "booked_date": date_value(row.get("Booked Date")) or timezone.localdate(),
+                })
 
-                if not any(c.get("id") == client_id for c in customers):
-                    customers.append({
-                        "id": client_id,
-                        "name": client,
-                        "email": str(row.get("Email") or ""),
-                        "phone": str(row.get("Mobile") or "-"),
-                        "status": "ACTIVE"
-                    })
-
-                # Coupons are earned explicitly from the Coupons page.
-                # Importing a booking does not automatically create a coupon.
-                added += 1
-
-            write("bookings", bookings)
-            write("customers", customers)
-            write("coupons", coupons)
-            write("ledger", ledger_data)
+            with transaction.atomic():
+                customers_by_id = Customer.objects.in_bulk({row["client_id"] for row in rows_to_import})
+                new_bookings = []
+                for row in rows_to_import:
+                    customer = customers_by_id.get(row["client_id"])
+                    if customer is None:
+                        customer = get_or_create_customer(row)
+                        customers_by_id[row["client_id"]] = customer
+                    new_bookings.append(Booking(
+                        pnr=row["s_pnr"],
+                        client=customer,
+                        passenger_name=row["passenger_name"],
+                        passenger_id=row["passenger_id"] or None,
+                        sector=row["sector"] or None,
+                        travel_date=row["travel_date"],
+                        end_date=row["end_date"],
+                        booked_date=row["booked_date"],
+                        net_amount=row["net_amount"],
+                        email=row["email"] or None,
+                        mobile=row["mobile"] or None,
+                        airline_pnr=row["airline_pnr"] or None,
+                        status=row["status"],
+                        booking_type=row["booking_type"],
+                        travel_type=row["travel_type"],
+                    ))
+                Booking.objects.bulk_create(new_bookings, batch_size=500)
+                added = len(new_bookings)
 
             messages.success(request, f"Upload completed. {added} new booking(s) added.")
         except Exception as exc:
             messages.error(request, f"Excel processing error: {exc}")
+            return redirect("excel_upload")
+        finally:
+            if workbook is not None:
+                workbook.close()
 
-        return redirect("excel_upload")
+        return redirect("bookings")
 
     return render(request, "excel_upload.html", page_context(request))
 

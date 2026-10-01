@@ -9,7 +9,7 @@
 <div class="three-col">
 <div class="card"><div class="card-head"><h2>Earn Coupon</h2></div>
 <form method="post" action="{% url 'earn_coupon' %}">{% csrf_token %}
-<label>CUSTOMER ID *</label><input name="customer_id" placeholder="e.g. CL-1001" required>
+<label>CLIENT ID *</label><input name="customer_id" placeholder="e.g. CL-1001" required>
 <label>BOOKING REFERENCE (S PNR) *</label><input name="booking_ref" placeholder="e.g. BK-2024-001" required>
 <p class="muted">Coupon points are calculated automatically as <b>passenger booking amount ÷ 100</b>. The coupon remains PENDING until the travel start date.</p>
 <button class="btn success-btn full">EARN COUPON</button>
