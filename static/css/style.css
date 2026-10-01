@@ -15,7 +15,7 @@ nav { padding:20px 0; }
 .main { margin-left:265px; width:calc(100% - 265px); min-width:0; }
 .topbar { height:78px; background:white; border-bottom:1px solid #dce2ec; display:flex; align-items:center; padding:0 28px; gap:14px; position:sticky; top:0; z-index:10; }
 .topbar h1 { font-size:23px; margin:0; }
-.menu-btn { background:#24479a; color:white; border:0; border-radius:6px; padding:9px 13px; font-weight:700; }
+.menu-btn { display:none; background:#24479a; color:white; border:0; border-radius:6px; padding:9px 13px; font-weight:700; }
 .top-actions { margin-left:auto; display:flex; gap:16px; align-items:center; }
 .admin-pill { background:#f7f8fb; padding:10px 16px; border-radius:6px; font-size:13px; }
 .logout-btn { background:#e52c2c; color:white; border:0; border-radius:6px; padding:10px 17px; font-weight:700; }
@@ -52,6 +52,9 @@ input:focus, select:focus { border-color:#3d7fee; box-shadow:0 0 0 3px rgba(61,1
 .form-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:0 18px; }
 .form-grid.six { grid-template-columns:repeat(4,1fr); }
 .inline-form { align-items:end; }
+.reverse-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:end; gap:18px; }
+.reverse-form input { margin-bottom:0; }
+.reverse-form .btn { width:100%; min-height:43px; }
 .table-wrap { overflow:auto; }
 table { width:100%; border-collapse:collapse; min-width:700px; }
 .ledger-summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:16px; }
@@ -143,6 +146,9 @@ td { padding:15px; border-bottom:1px solid #e3e7ee; font-size:13px; vertical-ali
 .passenger-summary-heading h2 { margin:6px 0 0; font-size:21px; }
 .eyebrow, .passenger-facts small { color:#73809a; font-size:10px; font-weight:800; }
 .points-total { min-width:150px; padding:12px 18px; border-radius:7px; color:#fff; background:#c62828; text-align:center; display:flex; flex-direction:column; gap:3px; transform-origin:center; animation:coupon-points-pulse 1.8s ease-in-out infinite; }
+.points-total.available { background:#06966f; }
+.points-total.pending { background:#ef9705; }
+.points-total.total { background:#119bd0; }
 .points-total span { font-size:10px; font-weight:800; }
 .points-total strong { font-size:24px; }
 .points-total small { font-size:10px; }
@@ -205,8 +211,10 @@ td { padding:15px; border-bottom:1px solid #e3e7ee; font-size:13px; vertical-ali
     .main { margin-left:0; width:100%; }
     .content { padding:22px 16px 40px; }
     .topbar { padding:0 14px; }
+    .menu-btn { display:inline-flex; }
     .top-actions .admin-pill { display:none; }
     .stats-grid, .two-col, .three-col, .four-col, .form-grid, .form-grid.six { grid-template-columns:1fr; }
+    .reverse-form { grid-template-columns:1fr; }
     .head-actions { flex-wrap:wrap; }
     .client-switch { flex-direction:column; align-items:stretch; }
     .directory-grid { grid-template-columns:1fr; }

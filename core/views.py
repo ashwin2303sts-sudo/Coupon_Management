@@ -52,7 +52,7 @@ def _coupon_status_for_travel(coupon, bookings=None):
     if not travel_date:
         return "PENDING"
     try:
-        return "AVAILABLE" if date.today() >= date.fromisoformat(str(travel_date)[:10]) else "PENDING"
+        return "AVAILABLE" if timezone.localdate() >= date.fromisoformat(str(travel_date)[:10]) else "PENDING"
     except ValueError:
         return "PENDING"
 
@@ -551,7 +551,7 @@ def earn_coupon(request):
         return redirect("coupons")
 
     travel_start = booking.travel_date
-    available_now = bool(travel_start and date.today() >= travel_start)
+    available_now = bool(travel_start and timezone.localdate() >= travel_start)
     status = "AVAILABLE" if available_now else "PENDING"
     coupon_id = new_id("CPN")
     coupon_code = f"CPN-{coupon_id.split('-', 1)[-1]}"
@@ -570,7 +570,7 @@ def earn_coupon(request):
             status=status,
             is_released=available_now,
             unlock_date=travel_start,
-            available_date=date.today() if available_now else None,
+            available_date=timezone.localdate() if available_now else None,
             redeemed_amount=0,
         )
 
@@ -585,7 +585,7 @@ def earn_coupon(request):
             type="Coupon Earned",
             amount=points,
             status=status,
-            date=date.today(),
+            date=timezone.localdate(),
         )
 
     messages.success(request, f"Coupon earned: {points:.2f} points (₹{amount:.2f} ÷ 100).")
@@ -604,7 +604,7 @@ def release_coupon(request):
     if not booking.travel_date:
         messages.warning(request, "The booking does not have a travel start date.")
         return redirect("coupons")
-    if date.today() < booking.travel_date:
+    if timezone.localdate() < booking.travel_date:
         messages.warning(request, "This coupon cannot be released before the travel start date.")
         return redirect("coupons")
 
@@ -618,7 +618,7 @@ def release_coupon(request):
 
     coupon.status = "AVAILABLE"
     coupon.is_released = True
-    coupon.available_date = date.today()
+    coupon.available_date = timezone.localdate()
     coupon.save(update_fields=["status", "is_released", "available_date", "updated_at"])
 
     Ledger.objects.create(
@@ -632,7 +632,7 @@ def release_coupon(request):
         type="Coupon Released",
         amount=0,
         status="AVAILABLE",
-        date=date.today(),
+        date=timezone.localdate(),
     )
 
     messages.success(request, "Coupon is now AVAILABLE because the travel date has started.")

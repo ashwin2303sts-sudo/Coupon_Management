@@ -34,7 +34,7 @@
 </form></div>
 
 <div class="card" id="reverseForm"><div class="card-head"><h2>Reverse Coupon</h2></div>
-<form method="post" action="{% url 'reverse_coupon' %}" class="form-grid inline-form">{% csrf_token %}
+<form method="post" action="{% url 'reverse_coupon' %}" class="reverse-form">{% csrf_token %}
 <div><label>BOOKING REFERENCE</label><input name="booking_ref" required></div><button class="btn danger">REVERSE COUPON</button>
 </form></div>
 

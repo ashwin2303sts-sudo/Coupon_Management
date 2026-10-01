@@ -50,9 +50,9 @@
     <section class="modal wide passenger-details-dialog" role="dialog" aria-modal="true" aria-labelledby="passengerDetailsTitle">
         <div class="passenger-modal-heading">
             <div><span class="eyebrow">PASSENGER DETAILS</span><h2 id="passengerDetailsTitle">{{ selected_booking.passenger_name|default:"Passenger" }}</h2><p>Passenger ID: <b>{{ selected_booking.passenger_id|default:"-" }}</b></p></div>
-            <div class="points-total"><span>AVAILABLE</span><strong>{{ passenger_available|floatformat:2 }}</strong></div>
-            <div class="points-total"><span>PENDING</span><strong>{{ passenger_pending|floatformat:2 }}</strong></div>
-            <div class="points-total"><span>TOTAL COUPON POINTS</span><strong>{{ passenger_points|floatformat:2 }}</strong></div>
+            <div class="points-total available"><span>AVAILABLE</span><strong>{{ passenger_available|floatformat:2 }}</strong></div>
+            <div class="points-total pending"><span>PENDING</span><strong>{{ passenger_pending|floatformat:2 }}</strong></div>
+            <div class="points-total total"><span>TOTAL COUPON POINTS</span><strong>{{ passenger_points|floatformat:2 }}</strong></div>
             <a class="btn secondary passenger-modal-close" href="?client_id={{ customer.id|urlencode }}&passenger_id={{ passenger_query|urlencode }}#passenger-search-results" aria-label="Close passenger details">CLOSE</a>
         </div>
         <div class="card-head passenger-history-heading"><h2>Travel History</h2><span class="count-pill">{{ passenger_history|length }} TRIPS</span></div>

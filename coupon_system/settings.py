@@ -17,6 +17,8 @@ ALLOWED_HOSTS = os.getenv(
     "127.0.0.1,localhost"
 ).split(",")
 
+TIME_ZONE = "Asia/Kolkata"
+
 INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
