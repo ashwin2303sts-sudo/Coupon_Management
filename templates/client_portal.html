@@ -43,6 +43,11 @@
     <div id="passenger-search-results" class="table-wrap"><table><thead><tr><th>PASSENGER ID</th><th>S PNR</th><th>PASSENGER NAME</th><th>CLIENT ID</th><th>SECTOR</th><th>TRAVEL DATE</th></tr></thead>
     <tbody>{% for b in passenger_matches %}<tr class="{% if selected_passenger_id == b.s_pnr %}selected-passenger-row{% endif %}"><td><a class="passenger-select-link" href="?client_id={{ customer.id|urlencode }}&passenger_id={{ passenger_query|urlencode }}&selected_passenger={{ b.s_pnr|urlencode }}">{{ b.passenger_id|default:"-" }}</a></td><td>{{ b.s_pnr }}</td><td>{{ b.passenger_name|default:"-" }}</td><td>{{ b.client_id }}</td><td>{{ b.sector|default:"-" }}</td><td>{{ b.travel_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="6">No passenger records found.</td></tr>{% endfor %}</tbody></table></div>
 </div>
+{% if not selected_booking %}
+<script>
+    document.getElementById("passenger-search-results").scrollIntoView({ behavior: "smooth", block: "start" });
+</script>
+{% endif %}
 {% endif %}
 
 {% if selected_booking %}

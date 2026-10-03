@@ -252,6 +252,8 @@ def read(name):
                     ),
 
                     "net_amount": money(booking.net_amount),
+                    "base_amount": money(booking.base_amount),
+                    "discount_percentage": money(booking.discount_percentage),
 
                     "email": booking.email or "",
                     "mobile": booking.mobile or "",
@@ -324,6 +326,7 @@ def read(name):
                     # `amount` represents coupon points/balance in the current UI.
                     "amount": money(coupon.amount),
                     "points": money(coupon.amount),
+                    "coupon_amount": money(coupon.amount) / 10,
 
                     "status": coupon.status,
                     "is_released": bool(coupon.is_released),
@@ -704,6 +707,14 @@ def write(name, value):
 
                     "net_amount": decimal_value(
                         row.get("net_amount")
+                    ),
+
+                    "base_amount": decimal_value(
+                        row.get("base_amount") or row.get("net_amount")
+                    ),
+
+                    "discount_percentage": decimal_value(
+                        row.get("discount_percentage")
                     ),
 
                     "email": row.get(

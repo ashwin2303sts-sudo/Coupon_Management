@@ -105,18 +105,20 @@ table { width:100%; border-collapse:collapse; min-width:700px; }
 .ledger-pagination a, .ledger-pagination .disabled { min-width:30px; padding:8px 9px; border:1px solid #e1e6ee; border-radius:5px; color:#43536c; text-decoration:none; text-align:center; font-size:10px; }
 .ledger-pagination a.current { color:#fff; border-color:#3479ed; background:#3479ed; }
 .ledger-pagination .disabled { color:#a6afbd; background:#f7f8fa; }
-.customer-bookings-table { min-width:0; table-layout:fixed; }
+.customer-bookings-table { width:1400px; min-width:1400px; table-layout:fixed; }
 .customer-bookings-table th:nth-child(-n+2), .customer-bookings-table td:nth-child(-n+2) { white-space:nowrap; }
-.customer-bookings-table th:nth-child(1), .customer-bookings-table td:nth-child(1) { width:9%; }
+.customer-bookings-table th:nth-child(1), .customer-bookings-table td:nth-child(1) { width:8%; }
 .customer-bookings-table th:nth-child(2), .customer-bookings-table td:nth-child(2) { width:12%; }
-.customer-bookings-table th:nth-child(3), .customer-bookings-table td:nth-child(3) { width:11%; }
+.customer-bookings-table th:nth-child(3), .customer-bookings-table td:nth-child(3) { width:10%; }
 .customer-bookings-table th:nth-child(4), .customer-bookings-table td:nth-child(4) { width:9%; }
-.customer-bookings-table th:nth-child(5), .customer-bookings-table td:nth-child(5), .customer-bookings-table th:nth-child(6), .customer-bookings-table td:nth-child(6) { width:10%; }
-.customer-bookings-table th:nth-child(7), .customer-bookings-table td:nth-child(7) { width:9%; }
-.customer-bookings-table th:nth-child(8), .customer-bookings-table td:nth-child(8), .customer-bookings-table th:nth-child(9), .customer-bookings-table td:nth-child(9), .customer-bookings-table th:nth-child(10), .customer-bookings-table td:nth-child(10) { width:10%; }
-.customer-bookings-table th { padding:10px 5px; font-size:10px; overflow-wrap:anywhere; }
-.customer-bookings-table td { padding:10px 5px; font-size:12px; overflow-wrap:anywhere; }
-.customer-bookings-table td.money { font-size:11px; }
+.customer-bookings-table th:nth-child(5), .customer-bookings-table td:nth-child(5),
+.customer-bookings-table th:nth-child(6), .customer-bookings-table td:nth-child(6) { width:12%; }
+.customer-bookings-table th:nth-child(7), .customer-bookings-table td:nth-child(7) { width:11%; }
+.customer-bookings-table th:nth-child(8), .customer-bookings-table td:nth-child(8) { width:8%; }
+.customer-bookings-table th:nth-child(9), .customer-bookings-table td:nth-child(9) { width:8%; }
+.customer-bookings-table th:nth-child(10), .customer-bookings-table td:nth-child(10) { width:10%; }
+.content .customer-bookings-table th { padding:10px; }
+.customer-bookings-table td { padding:10px; }
 th { background:#f7f9fc; font-size:11px; text-align:left; padding:15px; color:#12213d; }
 td { padding:15px; border-bottom:1px solid #e3e7ee; font-size:13px; vertical-align:middle; }
 .head-actions { display:flex; gap:10px; align-items:center; }
@@ -391,10 +393,10 @@ table tbody tr:hover{background:#f6f9ff}
 .demo-box b{color:#173d86}
 
 @keyframes planeFly{
-  0%{left:-14vw;top:58%;transform:scale(.65) rotateZ(-10deg) rotateY(0deg)}
-  35%{top:38%;transform:scale(.82) rotateZ(2deg) rotateY(180deg)}
-  70%{top:50%;transform:scale(.95) rotateZ(-2deg) rotateY(360deg)}
-  100%{left:108vw;top:43%;transform:scale(1.05) rotateZ(0deg) rotateY(720deg)}
+  0%{left:-14vw;top:58%;transform:scale(.65) scaleX(-1) rotateZ(-10deg)}
+  35%{top:38%;transform:scale(.82) scaleX(-1) rotateZ(2deg)}
+  70%{top:50%;transform:scale(.95) scaleX(-1) rotateZ(-2deg)}
+  100%{left:108vw;top:43%;transform:scale(1.05) scaleX(-1) rotateZ(0deg)}
 }
 @keyframes planeSpin{
   from{filter:drop-shadow(0 0 4px rgba(255,255,255,.2))}
@@ -446,3 +448,65 @@ table tbody tr:hover{background:#f6f9ff}
 .btn-icon:hover{background:#f0f4fa}
 .btn-icon.danger{border-color:#fecaca}
 .btn-icon.danger:hover{background:#fee2e2}
+
+/* Booking / coupon enhancements */
+.required-label::after { content:""; }
+.required-label.missing { color:#d62828; }
+.passenger-link { border:0; background:none; padding:0; color:#2467d6; font-weight:800; text-decoration:underline; }
+.booking-table-wrap { overflow-x:auto; overflow-y:visible; padding-bottom:4px; }
+.booking-fixed-scroll { position:fixed; left:265px; right:0; bottom:0; height:18px; overflow-x:auto; overflow-y:hidden; background:#f0f2f6; border-top:1px solid #d6dce7; z-index:50; }
+.booking-fixed-scroll > div { height:1px; }
+.discount-hint { display:block; margin:-8px 0 16px; color:#5f6f88; font-size:11px; }
+.auto-box { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; background:#f7f9fc; border:1px solid #dfe5ee; border-radius:7px; padding:14px; margin-bottom:12px; }
+.auto-box div { display:flex; flex-direction:column; gap:4px; }
+.auto-box b { font-size:10px; color:#65738a; text-transform:uppercase; }
+.auto-box span { font-weight:800; color:#182943; }
+.booking-detail-actions { align-items:center; }
+.booking-detail-actions form { margin:0; }
+@media(max-width:900px){ .booking-fixed-scroll{left:0;} .auto-box{grid-template-columns:1fr;} }
+
+
+/* ============================================================
+   GLOBAL HORIZONTAL SCROLLBAR / SINGLE-LINE TABLE LAYOUT
+   One fixed scrollbar for the whole page; native table
+   scrollbars are hidden so duplicate horizontal bars do not appear.
+   ============================================================ */
+html, body { max-width:100%; overflow-x:hidden; }
+.content .table-wrap,
+.content .booking-table-wrap,
+.content .ledger-table-wrap,
+.content .rdm-table-card,
+.content .rdm-table-wrap {
+    overflow-x:hidden !important;
+    overflow-y:visible;
+}
+.content table th,
+.content table td {
+    white-space:nowrap;
+    word-break:normal;
+    overflow-wrap:normal;
+}
+.global-fixed-scroll {
+    position:fixed;
+    left:265px;
+    right:0;
+    bottom:0;
+    height:18px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    background:#f0f2f6;
+    border-top:1px solid #d6dce7;
+    z-index:1000;
+    display:none;
+}
+.global-fixed-scroll > div { height:1px; min-width:1px; }
+@media(max-width:900px) {
+    .global-fixed-scroll { left:0; }
+}
+
+.booking-fixed-scroll { display:none !important; }
+
+/* Wide data tables: keep every record on one horizontal line */
+.booking-table-wrap table { min-width:1700px; table-layout:auto; }
+.ledger-table-wrap table { min-width:1100px; table-layout:auto; }
+.rdm-table-card .rdm-data-table { min-width:1200px; table-layout:auto; }

@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+import json
 from functools import wraps
 
 from django.contrib import messages
@@ -15,34 +16,79 @@ from .models import Coupon, Redemption, RedemptionAllocation, Ledger, Customer, 
 from .storage import read, write, now, new_id, money, decimal_value, date_value, get_or_create_customer
 
 
-def calculate_coupon(booking):
-    """Calculate coupon points from the passenger booking amount.
+AIRLINES = [
+    "Air India", "Air India Express", "IndiGo", "SpiceJet", "Akasa Air",
+    "Alliance Air", "Emirates", "Qatar Airways", "Etihad Airways",
+    "Singapore Airlines", "Malaysia Airlines", "Thai Airways", "SriLankan Airlines",
+    "British Airways", "Lufthansa", "Air France", "KLM Royal Dutch Airlines",
+    "Turkish Airlines", "Swiss International Air Lines", "Austrian Airlines",
+    "Finnair", "Virgin Atlantic", "American Airlines", "Delta Air Lines",
+    "United Airlines", "Air Canada", "Qantas", "Cathay Pacific", "Japan Airlines",
+    "ANA (All Nippon Airways)", "Korean Air", "China Airlines", "EVA Air",
+    "AirAsia", "AirAsia X", "Scoot", "VietJet Air", "Vietnam Airlines",
+    "Garuda Indonesia", "Batik Air", "Oman Air", "Gulf Air", "Kuwait Airways",
+    "Saudia", "flydubai", "Air Arabia", "Azerbaijan Airlines", "Ethiopian Airlines",
+    "Kenya Airways", "South African Airways", "ANY AIRLINE",
+]
+AIRLINE_TYPES = ["Economy Class", "Premium Class", "Business Class", "ANY CLASS"]
+BOOKING_METHODS = ["Web Booking", "Mobile App", "Agent Booking", "Offline/Counter"]
+TRAVEL_TYPES = ["Round Trip", "One Way"]
 
-    100 booking currency units = 1 coupon point.  The existing rule object is
-    returned for backward compatibility, but the point calculation is no
-    longer percentage-based.
-    """
+
+def _normalise(value):
+    return str(value or "").strip().casefold()
+
+
+def _rule_matches(rule, airline, airline_type):
+    if str(rule.get("status", "Active")).casefold() != "active":
+        return False
+    rule_airline = str(rule.get("airline") or "ANY AIRLINE").strip()
+    rule_type = str(rule.get("fare_type") or "ANY CLASS").strip()
+    airline_ok = _normalise(rule_airline) in {_normalise(airline), "any airline"}
+    type_ok = _normalise(rule_type) in {_normalise(airline_type), "any class"}
+    return airline_ok and type_ok
+
+
+def _find_matching_rule(airline, airline_type):
+    rules = [r for r in read("rules") if _rule_matches(r, airline, airline_type)]
+    if not rules:
+        return None
+    # Prefer exact airline + exact class, then progressively broader fallbacks.
+    def specificity(rule):
+        score = 0
+        if _normalise(rule.get("airline")) == _normalise(airline):
+            score += 4
+        if _normalise(rule.get("fare_type")) == _normalise(airline_type):
+            score += 2
+        return score
+    return sorted(rules, key=specificity, reverse=True)[0]
+
+
+def calculate_discounted_net(base_amount, airline, airline_type):
+    base = decimal_value(base_amount)
+    rule = _find_matching_rule(airline, airline_type)
+    percentage = decimal_value(rule.get("percentage")) if rule else decimal_value(0)
+    discount = (base * percentage) / decimal_value(100)
+    final_amount = max(decimal_value(0), base - discount).quantize(decimal_value("0.01"))
+    return final_amount, percentage, rule
+
+
+def calculate_coupon(booking):
     amount = money(booking.get("net_amount"))
     points = round(amount / 100, 2)
-    rules = [r for r in read("rules") if r.get("status") == "Active"]
-    rule = rules[0] if rules else None
-    return points, rule
+    return points, _find_matching_rule(booking.get("airline"), booking.get("fare_type"))
 
 
 def _coupon_points(coupon, bookings=None):
-    """Return stored points, with a safe fallback for older coupon records."""
     if coupon.get("points") is not None:
         return money(coupon.get("points"))
     if bookings is None:
         bookings = read("bookings")
     booking = next((b for b in bookings if b.get("s_pnr") == coupon.get("booking_ref")), None)
-    if booking:
-        return money(booking.get("net_amount")) / 100
-    return 0.0
+    return money(booking.get("net_amount")) / 100 if booking else 0.0
 
 
 def _coupon_status_for_travel(coupon, bookings=None):
-    """Pending before travel start; available on/after travel start."""
     if coupon.get("status") == "REDEEMED":
         return "REDEEMED"
     if bookings is None:
@@ -61,32 +107,21 @@ def auto_release_coupons():
     coupons = read("coupons")
     bookings = read("bookings")
     changed = False
-
     for c in coupons:
         status = _coupon_status_for_travel(c, bookings)
         points = _coupon_points(c, bookings)
+        booking = next((b for b in bookings if b.get("s_pnr") == c.get("booking_ref")), None)
         if c.get("points") != points:
-            c["points"] = points
-            changed = True
+            c["points"] = points; changed = True
         if c.get("status") != status and c.get("status") != "REDEEMED":
-            c["status"] = status
-            changed = True
+            c["status"] = status; changed = True
         released = status == "AVAILABLE" or c.get("status") == "REDEEMED"
         if bool(c.get("is_released")) != released:
-            c["is_released"] = released
-            changed = True
-        booking = next((b for b in bookings if b.get("s_pnr") == c.get("booking_ref")), None)
-        if booking and c.get("travel_start_date") != booking.get("travel_date", ""):
-            c["travel_start_date"] = booking.get("travel_date", "")
-            changed = True
-        if booking and c.get("travel_end_date") != booking.get("end_date", ""):
-            c["travel_end_date"] = booking.get("end_date", "")
-            changed = True
-        if booking and c.get("passenger_id") != booking.get("passenger_id", ""):
-            c["passenger_id"] = booking.get("passenger_id", "")
-            c["passenger_name"] = booking.get("passenger_name", "")
-            changed = True
-
+            c["is_released"] = released; changed = True
+        if booking:
+            for key, value in (("travel_start_date", booking.get("travel_date", "")), ("travel_end_date", booking.get("end_date", "")), ("passenger_id", booking.get("passenger_id", "")), ("passenger_name", booking.get("passenger_name", ""))):
+                if c.get(key) != value:
+                    c[key] = value; changed = True
     if changed:
         write("coupons", coupons)
     return coupons
@@ -391,23 +426,18 @@ def delete_customer(request):
 def bookings(request):
     q = request.GET.get("q", "").strip().lower()
     data = read("bookings")
-    travel_types = {"Round Trip", "One Way"}
     for booking in data:
-        if booking.get("booking_type") in travel_types and not booking.get("travel_type"):
-            booking["travel_type"] = booking["booking_type"]
-            booking["booking_type"] = "Web Booking"
         booking.setdefault("booking_type", "Web Booking")
         booking.setdefault("travel_type", "")
+        booking.setdefault("airline", "")
+        booking.setdefault("fare_type", "ANY CLASS")
     if q:
-        data = [
-            b for b in data
-            if q in str(b).lower()
-        ]
+        data = [b for b in data if q in str(b).lower()]
     return render(request, "bookings.html", page_context(
-        request,
-        bookings=data,
-        search=q,
-        customers=read("customers"),
+        request, bookings=data, search=q, customers=read("customers"),
+        airlines=AIRLINES, airline_types=AIRLINE_TYPES,
+        booking_methods=BOOKING_METHODS, travel_types=TRAVEL_TYPES,
+        rules=read("rules"), rules_json=json.dumps(read("rules")),
     ))
 
 
@@ -417,42 +447,48 @@ def add_booking(request):
     bookings = read("bookings")
     customers = read("customers")
     client_id = request.POST.get("client_id", "").strip()
-    client_name = request.POST.get("client_name", "").strip()
-
-    # Look up customer; if not found, use the typed name/id directly
     client_record = next((c for c in customers if c.get("id") == client_id), None)
-    if not client_name and client_record:
-        client_name = client_record.get("name", client_id)
-    if not client_name:
-        client_name = client_id
 
-    booking = {
-        "s_pnr": request.POST.get("s_pnr", "").strip(),
-        "passenger_id": request.POST.get("passenger_id", "").strip(),
-        "passenger_name": request.POST.get("passenger_name", "").strip(),
-        "client": client_name,
-        "client_id": client_id,
-        "sector": request.POST.get("sector", "").strip(),
-        "booking_type": request.POST.get("booking_type", "Web Booking").strip(),
-        "travel_type": request.POST.get("travel_type", "One Way").strip(),
-        "airline_pnr": request.POST.get("airline_pnr", "").strip(),
-        "net_amount": money(request.POST.get("net_amount", 0)),
-        "travel_date": request.POST.get("travel_date", ""),
-        "end_date": request.POST.get("end_date", ""),
-        "booked_date": request.POST.get("booked_date", date.today().isoformat()),
+    required_fields = {
+        "S PNR": request.POST.get("s_pnr", "").strip(),
+        "Client ID": client_id,
+        "Passenger ID": request.POST.get("passenger_id", "").strip(),
+        "Passenger Name": request.POST.get("passenger_name", "").strip(),
+        "Sector": request.POST.get("sector", "").strip(),
+        "Booking Type": request.POST.get("booking_type", "").strip(),
+        "Travel Type": request.POST.get("travel_type", "").strip(),
+        "Airline Name": request.POST.get("airline", "").strip(),
+        "Airline Type": request.POST.get("fare_type", "").strip(),
+        "Airline PNR": request.POST.get("airline_pnr", "").strip(),
+        "Net Amount": request.POST.get("net_amount", "").strip(),
+        "Travel Start Date": request.POST.get("travel_date", "").strip(),
+        "Travel End Date": request.POST.get("end_date", "").strip(),
+        "Booking Date": request.POST.get("booked_date", "").strip(),
     }
-    if not booking["s_pnr"] or not booking["passenger_id"] or not client_record:
-        messages.error(request, "S PNR, Passenger ID, and a valid Client ID are required.")
+    missing = [label for label, value in required_fields.items() if not value]
+    if missing or not client_record:
+        messages.error(request, "Please fill all required booking fields: " + ", ".join(missing or ["valid Client ID"]) + ".")
         return redirect("bookings")
-    if any(b.get("s_pnr") == booking["s_pnr"] for b in bookings):
+    if any(b.get("s_pnr") == required_fields["S PNR"] for b in bookings):
         messages.error(request, "This S PNR already exists.")
         return redirect("bookings")
 
-    bookings.insert(0, booking)
-    write("bookings", bookings)
-
-    messages.success(request, "Booking added successfully. Go to Coupons and earn the coupon for this booking.")
-
+    final_net, discount_pct, matched_rule = calculate_discounted_net(
+        required_fields["Net Amount"], required_fields["Airline Name"], required_fields["Airline Type"]
+    )
+    booking = {
+        "s_pnr": required_fields["S PNR"], "passenger_id": required_fields["Passenger ID"],
+        "passenger_name": required_fields["Passenger Name"], "client": client_record.get("name", client_id),
+        "client_id": client_id, "sector": required_fields["Sector"],
+        "booking_type": required_fields["Booking Type"], "travel_type": required_fields["Travel Type"],
+        "airline": required_fields["Airline Name"], "fare_type": required_fields["Airline Type"],
+        "airline_pnr": required_fields["Airline PNR"], "net_amount": money(final_net),
+        "base_amount": money(required_fields["Net Amount"]), "discount_percentage": money(discount_pct),
+        "travel_date": required_fields["Travel Start Date"], "end_date": required_fields["Travel End Date"],
+        "booked_date": required_fields["Booking Date"],
+    }
+    write("bookings", [booking] + bookings)
+    messages.success(request, f"Booking added successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
 
 
@@ -466,29 +502,33 @@ def edit_booking(request):
     if not booking:
         messages.error(request, "Booking not found.")
         return redirect("bookings")
-    passenger_id = request.POST.get("passenger_id", "").strip()
     client_id = request.POST.get("client_id", "").strip()
     client_record = next((c for c in customers if c.get("id") == client_id), None)
-    if not passenger_id or not client_record:
-        messages.error(request, "Passenger ID and a valid client are required.")
-        return redirect("bookings")
-    booking.update({
-        "passenger_id": passenger_id,
-        "passenger_name": request.POST.get("passenger_name", booking.get("passenger_name", "")).strip(),
-        "client": client_record["name"],
-        "client_id": client_id,
+    values = {
+        "passenger_id": request.POST.get("passenger_id", "").strip(),
+        "passenger_name": request.POST.get("passenger_name", "").strip(),
         "sector": request.POST.get("sector", "").strip(),
-        "booking_type": request.POST.get("booking_type", "Web Booking"),
-        "travel_type": request.POST.get("travel_type", "One Way"),
+        "booking_type": request.POST.get("booking_type", "").strip(),
+        "travel_type": request.POST.get("travel_type", "").strip(),
+        "airline": request.POST.get("airline", "").strip(),
+        "fare_type": request.POST.get("fare_type", "").strip(),
         "airline_pnr": request.POST.get("airline_pnr", "").strip(),
-        "net_amount": money(request.POST.get("net_amount", 0)),
-        "travel_date": request.POST.get("travel_date", ""),
-        "end_date": request.POST.get("end_date", ""),
-        "booked_date": request.POST.get("booked_date", ""),
-    })
+        "net_amount": request.POST.get("net_amount", "").strip(),
+        "travel_date": request.POST.get("travel_date", "").strip(),
+        "end_date": request.POST.get("end_date", "").strip(),
+        "booked_date": request.POST.get("booked_date", "").strip(),
+    }
+    missing = [k for k,v in values.items() if not v]
+    if missing or not client_record:
+        messages.error(request, "All booking fields are compulsory. Please fill every field.")
+        return redirect("bookings")
+    final_net, discount_pct, matched_rule = calculate_discounted_net(values["net_amount"], values["airline"], values["fare_type"])
+    booking.update(values)
+    booking.update({"client": client_record["name"], "client_id": client_id, "net_amount": money(final_net), "base_amount": money(values["net_amount"]), "discount_percentage": money(discount_pct)})
     write("bookings", bookings_data)
-    messages.success(request, "Booking updated successfully.")
+    messages.success(request, f"Booking {spnr} updated successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
+
 
 @admin_required
 @require_POST
@@ -505,13 +545,21 @@ def coupons(request):
     coupon_data = auto_release_coupons()
     available_points = sum(_coupon_points(c, bookings_data) for c in coupon_data if c.get("status") == "AVAILABLE")
     pending_points = sum(_coupon_points(c, bookings_data) for c in coupon_data if c.get("status") == "PENDING")
+    # Data used by the popup auto-fill.
+    passenger_records = []
+    for b in bookings_data:
+        passenger_records.append({
+            "passenger_id": b.get("passenger_id", ""), "passenger_name": b.get("passenger_name", ""),
+            "client_id": b.get("client_id", ""), "client_name": b.get("client", ""),
+            "s_pnr": b.get("s_pnr", ""), "net_amount": money(b.get("net_amount")),
+            "sector": b.get("sector", ""), "airline": b.get("airline", ""),
+            "fare_type": b.get("fare_type", ""), "airline_pnr": b.get("airline_pnr", ""),
+            "travel_date": b.get("travel_date", ""), "end_date": b.get("end_date", ""),
+            "booked_date": b.get("booked_date", ""),
+        })
     return render(request, "coupons.html", page_context(
-        request,
-        coupons=coupon_data,
-        customers=read("customers"),
-        bookings=bookings_data,
-        available_points=available_points,
-        pending_points=pending_points,
+        request, coupons=coupon_data, customers=read("customers"), bookings=bookings_data,
+        passenger_records=passenger_records, passenger_records_json=json.dumps(passenger_records), coupon_records_json=json.dumps(coupon_data), available_points=available_points, pending_points=pending_points,
         total_coupon_points=available_points + pending_points,
     ))
 
@@ -519,76 +567,36 @@ def coupons(request):
 @admin_required
 @require_POST
 def earn_coupon(request):
-    customer_id = request.POST.get("customer_id", "").strip()
-    booking_ref = request.POST.get("booking_ref", "").strip()
-
-    if not customer_id or not booking_ref:
-        messages.error(request, "Customer ID and Booking Reference are required.")
+    passenger_id = request.POST.get("passenger_id", "").strip()
+    if not passenger_id:
+        messages.error(request, "Passenger ID is required.")
         return redirect("coupons")
-
-    customer = Customer.objects.filter(id=customer_id).first()
-    booking = Booking.objects.select_related("client").filter(pnr=booking_ref).first()
-
+    booking = Booking.objects.select_related("client").filter(passenger_id=passenger_id).order_by("-created_at").first()
     if not booking:
-        messages.error(request, "Booking reference not found.")
+        messages.error(request, "Passenger ID not found in Bookings.")
         return redirect("coupons")
-    if not customer:
-        messages.error(request, "Customer ID not found.")
-        return redirect("coupons")
-    if booking.client_id != customer_id:
-        messages.error(request, "This booking does not belong to the selected customer.")
-        return redirect("coupons")
-
+    customer = booking.client
+    booking_ref = booking.pnr
     if Coupon.objects.filter(booking_ref=booking_ref).exists():
         existing = Coupon.objects.filter(booking_ref=booking_ref).first()
         messages.info(request, f"A coupon already exists for {booking_ref} ({existing.status}).")
         return redirect("coupons")
-
-    amount = money(booking.net_amount)
-    points = round(amount / 100, 2)
+    amount = decimal_value(booking.net_amount)
+    points = (amount / decimal_value(100)).quantize(decimal_value("0.01"))
     if points <= 0:
-        messages.error(request, "Booking amount must be greater than ₹0 to earn coupon points.")
+        messages.error(request, "Booking Net Amount must be greater than ₹0.")
         return redirect("coupons")
-
-    travel_start = booking.travel_date
-    available_now = bool(travel_start and timezone.localdate() >= travel_start)
+    available_now = bool(booking.travel_date and timezone.localdate() >= booking.travel_date)
     status = "AVAILABLE" if available_now else "PENDING"
     coupon_id = new_id("CPN")
     coupon_code = f"CPN-{coupon_id.split('-', 1)[-1]}"
-
     with transaction.atomic():
-        Coupon.objects.create(
-            id=coupon_id,
-            coupon_code=coupon_code,
-            customer=customer,
-            booking=booking,
-            booking_ref=booking_ref,
-            customer_name=customer.name,
-            passenger_name=booking.passenger_name,
-            travel_date=travel_start,
-            amount=points,
-            status=status,
-            is_released=available_now,
-            unlock_date=travel_start,
-            available_date=timezone.localdate() if available_now else None,
-            redeemed_amount=0,
-        )
-
-        Ledger.objects.create(
-            id=new_id("TXN-EARN"),
-            txn_id=new_id("TXN-EARN"),
-            customer=customer,
-            customer_name=customer.name,
-            booking=booking,
-            booking_ref=booking_ref,
-            coupon_code=coupon_code,
-            type="Coupon Earned",
-            amount=points,
-            status=status,
-            date=timezone.localdate(),
-        )
-
-    messages.success(request, f"Coupon earned: {points:.2f} points (₹{amount:.2f} ÷ 100).")
+        Coupon.objects.create(id=coupon_id, coupon_code=coupon_code, customer=customer, booking=booking, booking_ref=booking_ref,
+            customer_name=customer.name, passenger_name=booking.passenger_name, travel_date=booking.travel_date, amount=points,
+            status=status, is_released=available_now, unlock_date=booking.travel_date, available_date=timezone.localdate() if available_now else None, redeemed_amount=0)
+        Ledger.objects.create(id=new_id("TXN-EARN"), txn_id=new_id("TXN-EARN"), customer=customer, customer_name=customer.name, booking=booking,
+            booking_ref=booking_ref, coupon_code=coupon_code, type="Coupon Earned", amount=points, status=status, date=timezone.localdate())
+    messages.success(request, f"Earn Coupon created: {money(points):,.2f} points. Coupon Amount when available: ₹{money(points/10):,.2f}.")
     return redirect("coupons")
 
 
@@ -598,218 +606,108 @@ def release_coupon(request):
     booking_ref = request.POST.get("booking_ref", "").strip()
     booking = Booking.objects.filter(pnr=booking_ref).first()
     if not booking:
-        messages.error(request, "Booking reference not found.")
+        messages.error(request, "S PNR not found.")
         return redirect("coupons")
-
-    if not booking.travel_date:
-        messages.warning(request, "The booking does not have a travel start date.")
-        return redirect("coupons")
-    if timezone.localdate() < booking.travel_date:
-        messages.warning(request, "This coupon cannot be released before the travel start date.")
-        return redirect("coupons")
-
     coupon = Coupon.objects.filter(booking_ref=booking_ref).first()
     if not coupon:
-        messages.warning(request, "No coupon found for that booking. Earn the coupon first.")
+        messages.warning(request, "No coupon found. Earn the coupon first.")
+        return redirect("coupons")
+    if not booking.travel_date or timezone.localdate() < booking.travel_date:
+        messages.warning(request, "Coupon remains PENDING until the Travel Start Date.")
         return redirect("coupons")
     if coupon.status == "REDEEMED":
-        messages.warning(request, "This coupon has already been redeemed.")
+        messages.warning(request, "This coupon has already been fully redeemed.")
         return redirect("coupons")
-
-    coupon.status = "AVAILABLE"
-    coupon.is_released = True
-    coupon.available_date = timezone.localdate()
+    coupon.status = "AVAILABLE"; coupon.is_released = True; coupon.available_date = timezone.localdate()
     coupon.save(update_fields=["status", "is_released", "available_date", "updated_at"])
-
-    Ledger.objects.create(
-        id=new_id("TXN-REL"),
-        txn_id=new_id("TXN-REL"),
-        customer=coupon.customer,
-        customer_name=coupon.customer.name if coupon.customer else coupon.customer_name,
-        booking=booking,
-        booking_ref=booking_ref,
-        coupon_code=coupon.coupon_code or coupon.id,
-        type="Coupon Released",
-        amount=0,
-        status="AVAILABLE",
-        date=timezone.localdate(),
-    )
-
-    messages.success(request, "Coupon is now AVAILABLE because the travel date has started.")
+    messages.success(request, f"Coupon for {booking_ref} is now AVAILABLE. Coupon Amount: ₹{money(coupon.amount/10):,.2f}.")
     return redirect("coupons")
+
+
+def _booking_for_passenger(passenger_id):
+    return Booking.objects.select_related("client").filter(passenger_id=passenger_id).order_by("-created_at").first()
 
 
 @admin_required
 @require_POST
 def redeem_coupon(request):
-    customer_id = request.POST.get("customer_id", "").strip()
-    booking_ref = request.POST.get("booking_ref", "").strip()
-
-    customer = Customer.objects.filter(id=customer_id).first()
-    if not customer:
-        messages.error(request, "Customer ID not found.")
+    passenger_id = request.POST.get("passenger_id", "").strip()
+    if not passenger_id:
+        messages.error(request, "Passenger ID is required.")
         return redirect("coupons")
-
-    if not Booking.objects.filter(pnr=booking_ref).exists():
-        messages.error(request, "Next Booking / PNR not found.")
+    booking = _booking_for_passenger(passenger_id)
+    if not booking:
+        messages.error(request, "Passenger ID not found.")
         return redirect("coupons")
-
-    config = read("settings")
-    minimum = money(config.get("min_redemption_amount", 100))
-    maximum = money(config.get("max_redemption_amount", 50000))
-
-    available = list(
-        Coupon.objects.select_related("customer", "booking")
-        .filter(customer_id=customer_id, status="AVAILABLE")
-        .order_by("created_at")
-    )
-    available = [c for c in available if money(c.amount) > 0]
+    customer = booking.client
+    available = list(Coupon.objects.select_related("booking", "customer").filter(customer=customer, status="AVAILABLE", booking__passenger_id=passenger_id).order_by("-created_at"))
+    available = [c for c in available if decimal_value(c.amount) > 0][:1]
     if not available:
-        messages.error(request, "No available coupon balance for this customer.")
+        messages.error(request, "Coupon is not AVAILABLE yet. It becomes available only on/after Travel Start Date.")
         return redirect("coupons")
-
-    total_available = sum(money(c.amount) for c in available)
-    if total_available < minimum:
-        messages.error(request, f"Available coupon amount must be at least ₹{minimum:.2f}.")
+    total_points = sum((decimal_value(c.amount) for c in available), decimal_value(0))
+    coupon_amount = (total_points / decimal_value(10)).quantize(decimal_value("0.01"))
+    if coupon_amount <= 0:
+        messages.error(request, "Coupon Amount is ₹0.00.")
         return redirect("coupons")
-
-    redeemed_amount = min(total_available, maximum)
-    remaining = redeemed_amount
-    allocations = []
-
     with transaction.atomic():
         for coupon in available:
-            if remaining <= 0:
-                break
-            used = min(money(coupon.amount), remaining)
-            if used <= 0:
-                continue
-
-            coupon.amount = decimal_value(coupon.amount) - decimal_value(used)
-            coupon.redeemed_amount = decimal_value(coupon.redeemed_amount) + decimal_value(used)
+            used_points = decimal_value(coupon.amount)
+            coupon.redeemed_amount = decimal_value(coupon.redeemed_amount) + used_points
+            coupon.amount = decimal_value(0)
+            coupon.status = "REDEEMED"
             coupon.is_released = True
-            if money(coupon.amount) <= 0:
-                coupon.amount = 0
-                coupon.status = "REDEEMED"
-            else:
-                coupon.status = "AVAILABLE"
             coupon.save(update_fields=["amount", "redeemed_amount", "status", "is_released", "updated_at"])
-
-            code = coupon.coupon_code or coupon.id
-            allocations.append((coupon, code, used))
-            remaining = money(remaining - used)
-
+        old_net = decimal_value(booking.net_amount)
+        booking.net_amount = max(decimal_value(0), old_net - coupon_amount)
+        booking.save(update_fields=["net_amount", "updated_at"])
         redemption_id = new_id("RDM")
-        redemption = Redemption.objects.create(
-            id=redemption_id,
-            customer=customer,
-            customer_name=customer.name,
-            booking_ref=booking_ref,
-            coupon_code=", ".join(code for _, code, _ in allocations),
-            amount=redeemed_amount,
-            redeemed_amount=redeemed_amount,
-            status="COMPLETED",
-            redemption_type="Coupon Redemption",
-            time=now().split(" ")[1][:5],
-        )
-
-        for _, code, used in allocations:
-            RedemptionAllocation.objects.create(
-                redemption=redemption,
-                coupon_code=code,
-                amount=used,
-            )
-
-        Ledger.objects.create(
-            id=new_id("TXN-RED"),
-            txn_id=redemption_id,
-            customer=customer,
-            customer_name=customer.name,
-            booking_ref=booking_ref,
-            coupon_code=redemption.coupon_code,
-            type="Coupon Redeemed",
-            amount=-decimal_value(redeemed_amount),
-            status="SUCCESS",
-            date=date.today(),
-        )
-
-    messages.success(request, f"Coupon redeemed successfully: ₹{redeemed_amount:.2f}")
+        codes = ", ".join(c.coupon_code or c.id for c in available)
+        redemption = Redemption.objects.create(id=redemption_id, customer=customer, customer_name=customer.name, booking_id=booking.pnr, booking_ref=booking.pnr,
+            coupon_code=codes, amount=coupon_amount, redeemed_amount=coupon_amount, status="COMPLETED", redemption_type="Coupon Redemption", time=now().split(" ")[1][:5])
+        for coupon in available:
+            RedemptionAllocation.objects.create(redemption=redemption, coupon_code=coupon.coupon_code or coupon.id, amount=(decimal_value(coupon.redeemed_amount)))
+        Ledger.objects.create(id=new_id("TXN-RED"), txn_id=redemption_id, customer=customer, customer_name=customer.name, booking=booking, booking_ref=booking.pnr,
+            coupon_code=codes, type="Coupon Redeemed", amount=-coupon_amount, status="SUCCESS", date=timezone.localdate())
+    messages.success(request, f"Coupon redeemed: ₹{money(coupon_amount):,.2f}. Booking Net Amount updated to ₹{money(booking.net_amount):,.2f}.")
     return redirect("coupons")
 
 
 @admin_required
 @require_POST
 def reverse_coupon(request):
-    booking_ref = request.POST.get("booking_ref", "").strip()
-    if not booking_ref:
-        messages.error(request, "Booking reference is required.")
+    passenger_id = request.POST.get("passenger_id", "").strip()
+    if not passenger_id:
+        messages.error(request, "Passenger ID is required.")
         return redirect("coupons")
-
-    redemption = (
-        Redemption.objects.prefetch_related("allocations")
-        .filter(booking_ref=booking_ref, status__in=["COMPLETED", "SUCCESS"])
-        .order_by("-date")
-        .first()
-    )
+    booking = _booking_for_passenger(passenger_id)
+    if not booking:
+        messages.error(request, "Passenger ID not found.")
+        return redirect("coupons")
+    redemption = Redemption.objects.filter(booking_ref=booking.pnr, status__in=["COMPLETED", "SUCCESS"]).order_by("-date").first()
     if not redemption:
-        messages.error(request, "No completed redemption was found for this booking reference.")
+        messages.error(request, "No completed redemption was found for this Passenger ID.")
         return redirect("coupons")
-
+    restored_amount = decimal_value(redemption.redeemed_amount or redemption.amount)
+    restored_points = (restored_amount * decimal_value(10)).quantize(decimal_value("0.01"))
     with transaction.atomic():
-        restored = decimal_value(0)
-        allocations = list(redemption.allocations.all())
-
-        if allocations:
-            for allocation in allocations:
-                coupon = Coupon.objects.filter(coupon_code=allocation.coupon_code).first()
-                if not coupon:
-                    continue
-                add_back = decimal_value(allocation.amount)
-                coupon.amount = decimal_value(coupon.amount) + add_back
-                coupon.redeemed_amount = max(decimal_value(0), decimal_value(coupon.redeemed_amount) - add_back)
-                coupon.status = "AVAILABLE"
-                coupon.is_released = True
-                coupon.save(update_fields=["amount", "redeemed_amount", "status", "is_released", "updated_at"])
-                restored += add_back
-        else:
-            codes = [x.strip() for x in str(redemption.coupon_code or "").split(",") if x.strip()]
-            for code in codes:
-                coupon = Coupon.objects.filter(coupon_code=code).first()
-                if coupon:
-                    add_back = decimal_value(redemption.redeemed_amount)
-                    coupon.amount = decimal_value(coupon.amount) + add_back
-                    coupon.redeemed_amount = max(decimal_value(0), decimal_value(coupon.redeemed_amount) - add_back)
-                    coupon.status = "AVAILABLE"
-                    coupon.is_released = True
-                    coupon.save(update_fields=["amount", "redeemed_amount", "status", "is_released", "updated_at"])
-                    restored += add_back
-                    break
-
-        if restored <= 0:
-            messages.error(request, "No matching coupon record was found to reverse.")
+        coupon = Coupon.objects.filter(booking_ref=booking.pnr).first()
+        if not coupon:
+            messages.error(request, "Coupon record not found.")
             return redirect("coupons")
-
-        redemption.status = "REVERSED"
-        redemption.reversed_at = timezone.now()
-        redemption.reversed_amount = restored
+        coupon.amount = decimal_value(coupon.amount) + restored_points
+        coupon.redeemed_amount = max(decimal_value(0), decimal_value(coupon.redeemed_amount) - restored_points)
+        coupon.status = "AVAILABLE" if booking.travel_date and timezone.localdate() >= booking.travel_date else "PENDING"
+        coupon.is_released = coupon.status == "AVAILABLE"
+        coupon.save(update_fields=["amount", "redeemed_amount", "status", "is_released", "updated_at"])
+        booking.net_amount = decimal_value(booking.net_amount) + restored_amount
+        booking.save(update_fields=["net_amount", "updated_at"])
+        redemption.status = "REVERSED"; redemption.reversed_at = timezone.now(); redemption.reversed_amount = restored_amount
         redemption.save(update_fields=["status", "reversed_at", "reversed_amount"])
-
-        Ledger.objects.create(
-            id=new_id("TXN-REV"),
-            txn_id=new_id("TXN-REV"),
-            customer=redemption.customer,
-            customer_name=redemption.customer_name,
-            booking_ref=booking_ref,
-            coupon_code=redemption.coupon_code,
-            type="Coupon Reversed",
-            amount=restored,
-            status="REVERSED",
-            date=date.today(),
-        )
-
-    messages.success(request, f"Coupon redemption reversed: ₹{float(restored):.2f} restored.")
+        Ledger.objects.create(id=new_id("TXN-REV"), txn_id=new_id("TXN-REV"), customer=redemption.customer, customer_name=redemption.customer_name, booking=booking,
+            booking_ref=booking.pnr, coupon_code=redemption.coupon_code, type="Coupon Reversed", amount=restored_amount, status="REVERSED", date=timezone.localdate())
+    messages.success(request, f"Coupon reversed: ₹{money(restored_amount):,.2f} added back to Net Amount and {money(restored_points):,.2f} points restored.")
     return redirect("coupons")
-
 
 @admin_required
 def redemptions(request):
@@ -1155,25 +1053,25 @@ def excel_upload(request):
 
 @admin_required
 def rules(request):
-    return render(request, "rules.html", page_context(request, rules=read("rules")))
+    return render(request, "rules.html", page_context(request, rules=read("rules"), airlines=AIRLINES, airline_types=AIRLINE_TYPES))
 
 
 @admin_required
 @require_POST
 def add_rule(request):
+    airline = request.POST.get("airline", "").strip() or "ANY AIRLINE"
+    airline_type = request.POST.get("fare_type", "ANY CLASS").strip() or "ANY CLASS"
+    try:
+        percentage = money(request.POST.get("percentage", 0))
+    except (TypeError, ValueError):
+        percentage = 0
+    if percentage < 0 or percentage > 100:
+        messages.error(request, "Discount percentage must be between 0 and 100.")
+        return redirect("rules")
     rules_data = read("rules")
-    rules_data.append({
-        "id": new_id("RULE"),
-        "office_id": request.POST.get("office_id", "").strip(),
-        "booking_type": request.POST.get("booking_type", "Any Booking Type"),
-        "supplier": request.POST.get("supplier", "").strip(),
-        "airline": request.POST.get("airline", "").strip(),
-        "fare_type": request.POST.get("fare_type", "Any Fare Type"),
-        "percentage": money(request.POST.get("percentage", 2.5)),
-        "status": request.POST.get("status", "Active"),
-    })
+    rules_data.append({"id": new_id("RULE"), "airline": airline, "fare_type": airline_type, "percentage": percentage, "status": request.POST.get("status", "Active")})
     write("rules", rules_data)
-    messages.success(request, "Rule created.")
+    messages.success(request, "Rule created successfully.")
     return redirect("rules")
 
 

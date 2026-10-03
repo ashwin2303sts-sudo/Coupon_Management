@@ -143,6 +143,19 @@ class Booking(models.Model):
         default=0
     )
 
+    # Original amount entered before applying the matching Rules discount.
+    base_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+
+    discount_percentage = models.DecimalField(
+        max_digits=7,
+        decimal_places=4,
+        default=0
+    )
+
     email = models.EmailField(
         max_length=254,
         null=True,

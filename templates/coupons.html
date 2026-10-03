@@ -1,45 +1,21 @@
 {% extends "base.html" %}
 {% block page_title %}Coupons{% endblock %}
 {% block content %}
-<div class="stats-grid">
-    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available_points|floatformat:2 }}</strong><small>Travel date started</small></div>
-    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending_points|floatformat:2 }}</strong><small>Before travel start date</small></div>
-    <div class="stat blue"><span>TOTAL COUPON POINTS</span><strong>{{ total_coupon_points|floatformat:2 }}</strong><small>Available + Pending</small></div>
-</div>
+<div class="stats-grid"><div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available_points|floatformat:2 }}</strong><small>Travel Start Date reached</small></div><div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending_points|floatformat:2 }}</strong><small>Before Travel Start Date</small></div><div class="stat blue"><span>TOTAL COUPON POINTS</span><strong>{{ total_coupon_points|floatformat:2 }}</strong><small>Available + Pending</small></div></div>
 <div class="three-col">
-<div class="card"><div class="card-head"><h2>Earn Coupon</h2></div>
-<form method="post" action="{% url 'earn_coupon' %}">{% csrf_token %}
-<label>CLIENT ID *</label><input name="customer_id" placeholder="e.g. CL-1001" required>
-<label>BOOKING REFERENCE (S PNR) *</label><input name="booking_ref" placeholder="e.g. BK-2024-001" required>
-<p class="muted">Coupon points are calculated automatically as <b>passenger booking amount ÷ 100</b>. The coupon remains PENDING until the travel start date.</p>
-<button class="btn success-btn full">EARN COUPON</button>
-</form></div>
+<div class="card"><div class="card-head"><h2>Earn Coupon</h2></div><form method="post" action="{% url 'earn_coupon' %}" id="earnForm">{% csrf_token %}<label>PASSENGER ID *</label><input id="earnPassengerId" name="passenger_id" placeholder="Enter Passenger ID" list="passengerList" required><datalist id="passengerList">{% for p in passenger_records %}<option value="{{ p.passenger_id }}">{{ p.passenger_name }}</option>{% endfor %}</datalist><div class="auto-box"><div><b>Passenger Name</b><span id="earnName">-</span></div><div><b>Client ID</b><span id="earnClient">-</span></div><div><b>S PNR</b><span id="earnPnr">-</span></div><div><b>Net Amount</b><span id="earnNet">₹0.00</span></div><div><b>Points</b><span id="earnPoints">0.00</span></div><div><b>Sector</b><span id="earnSector">-</span></div><div><b>Airline Name</b><span id="earnAirline">-</span></div><div><b>Airline Type</b><span id="earnAirlineType">-</span></div><div><b>Airline PNR</b><span id="earnAirlinePnr">-</span></div><div><b>Travel Start</b><span id="earnTravelStart">-</span></div><div><b>Travel End</b><span id="earnTravelEnd">-</span></div><div><b>Booked Date</b><span id="earnBookedDate">-</span></div></div><button class="btn success-btn full">EARN COUPON</button></form></div>
+<div class="card"><div class="card-head"><h2>Release Coupon</h2></div><form method="post" action="{% url 'release_coupon' %}">{% csrf_token %}<label>S PNR *</label><input name="booking_ref" placeholder="Enter S PNR" required><p class="muted">Release is allowed only when the Travel Start Date has arrived.</p><button class="btn success-btn full">RELEASE COUPON</button></form></div>
+<div class="card"><div class="card-head"><h2>Coupon Actions</h2></div><button class="btn success-btn full" type="button" onclick="openModal('redeemModal')">REDEEM COUPON</button><button class="btn danger full" type="button" onclick="openModal('reverseModal')">REVERSE COUPON</button></div></div>
 
-<div class="card"><div class="card-head"><h2>Release Coupon</h2></div>
-<form method="post" action="{% url 'release_coupon' %}">{% csrf_token %}
-<label>BOOKING REFERENCE</label><input name="booking_ref" placeholder="BK-2024-001" required>
-<button class="btn success-btn full">RELEASE COUPON</button>
-</form></div>
+<div class="card"><div class="card-head"><h2>Coupon Records</h2><span class="count-pill">POINTS = NET AMOUNT ÷ 100</span></div><div class="table-wrap"><table><thead><tr><th>PASSENGER ID</th><th>PASSENGER NAME</th><th>CLIENT ID</th><th>S PNR</th><th>POINTS</th><th>COUPON AMOUNT</th><th>STATUS</th><th>TRAVEL START</th><th>TRAVEL END</th></tr></thead><tbody>{% for c in coupons %}<tr><td><b>{{ c.passenger_id|default:"-" }}</b></td><td>{{ c.passenger_name|default:"-" }}</td><td>{{ c.customer_id }}</td><td>{{ c.booking_ref }}</td><td>{{ c.points|floatformat:2 }}</td><td>₹{% if c.status == 'AVAILABLE' %}{{ c.coupon_amount|floatformat:2|default:"0" }}{% else %}0.00{% endif %}</td><td><span class="badge {% if c.status == 'AVAILABLE' %}success{% elif c.status == 'REDEEMED' %}info{% else %}pending{% endif %}">{{ c.status }}</span></td><td>{{ c.travel_start_date|default:c.unlock_date|default:"-" }}</td><td>{{ c.travel_end_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="9">No coupons.</td></tr>{% endfor %}</tbody></table></div></div>
 
-<div class="card"><div class="card-head"><h2>Quick Actions</h2></div>
-<!-- <button class="btn primary full" onclick="window.location='{% url 'client_portal' %}'">CHECK BALANCE</button> -->
-<button class="btn success-btn full" onclick="document.getElementById('redeemForm').scrollIntoView()">REDEEM COUPON</button>
-<button class="btn danger full" onclick="document.getElementById('reverseForm').scrollIntoView()">REVERSE COUPON</button>
-</div>
-</div>
-
-<div class="card" id="redeemForm"><div class="card-head"><h2>Redeem Coupon</h2></div>
-<form method="post" action="{% url 'redeem_coupon' %}" class="form-grid inline-form">{% csrf_token %}
-<div><label>CUSTOMER ID</label><input name="customer_id" required></div><div><label>NEXT BOOKING / PNR</label><input name="booking_ref" required></div><button class="btn success-btn">REDEEM AVAILABLE</button>
-</form></div>
-
-<div class="card" id="reverseForm"><div class="card-head"><h2>Reverse Coupon</h2></div>
-<form method="post" action="{% url 'reverse_coupon' %}" class="reverse-form">{% csrf_token %}
-<div><label>BOOKING REFERENCE</label><input name="booking_ref" required></div><button class="btn danger">REVERSE COUPON</button>
-</form></div>
-
-<div class="card"><div class="card-head"><h2>Coupon Records</h2><span class="count-pill">AVAILABLE + PENDING</span></div>
-<div class="table-wrap"><table><thead><tr><th>ID</th><th>CUSTOMER</th><th>PASSENGER</th><th>BOOKING</th><th>POINTS</th><th>STATUS</th><th>TRAVEL START</th><th>TRAVEL END</th></tr></thead><tbody>
-{% for c in coupons %}<tr><td>{{ c.id }}</td><td>{{ c.customer_name }}<small>{{ c.customer_id }}</small></td><td>{{ c.passenger_name|default:"-" }}<small>{{ c.passenger_id|default:"-" }}</small></td><td>{{ c.booking_ref }}</td><td><b>{{ c.points|floatformat:2 }}</b></td><td><span class="badge {% if c.status == 'AVAILABLE' %}success{% else %}pending{% endif %}">{{ c.status }}</span></td><td>{{ c.travel_start_date|default:c.unlock_date|default:"-" }}</td><td>{{ c.travel_end_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="8">No coupons.</td></tr>{% endfor %}
-</tbody></table></div></div>
+<div class="modal-overlay" id="redeemModal"><div class="modal wide"><h2>Redeem Coupon</h2><form method="post" action="{% url 'redeem_coupon' %}">{% csrf_token %}<label>PASSENGER ID *</label><input id="redeemPassengerId" name="passenger_id" placeholder="Enter Passenger ID" list="passengerList" required><div class="auto-box"><div><b>Passenger Name</b><span id="redeemName">-</span></div><div><b>Client ID</b><span id="redeemClient">-</span></div><div><b>S PNR</b><span id="redeemPnr">-</span></div><div><b>Net Amount</b><span id="redeemNet">₹0.00</span></div><div><b>Coupon Amount</b><span id="redeemAmount">₹0.00</span></div></div><p class="muted">Coupon Amount = Available Points ÷ 10. Before Travel Start Date, Coupon Amount remains ₹0.00.</p><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal('redeemModal')">CANCEL</button><button class="btn success-btn">REDEEM COUPON</button></div></form></div></div>
+<div class="modal-overlay" id="reverseModal"><div class="modal wide"><h2>Reverse Coupon</h2><form method="post" action="{% url 'reverse_coupon' %}">{% csrf_token %}<label>PASSENGER ID *</label><input id="reversePassengerId" name="passenger_id" placeholder="Enter Passenger ID" list="passengerList" required><div class="auto-box"><div><b>Passenger Name</b><span id="reverseName">-</span></div><div><b>Client ID</b><span id="reverseClient">-</span></div><div><b>S PNR</b><span id="reversePnr">-</span></div><div><b>Coupon Amount</b><span id="reverseAmount">₹0.00</span></div></div><p class="muted">Reverse restores Coupon Amount × 10 as Available Points and adds Coupon Amount back to Booking Net Amount.</p><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal('reverseModal')">CANCEL</button><button class="btn danger">REVERSE COUPON</button></div></form></div></div>
+<script>
+const passengerRecords={{ passenger_records_json|safe }}; const couponRecords={{ coupon_records_json|safe }};
+function passengerInfo(id){return passengerRecords.find(x=>String(x.passenger_id||'').toLowerCase()===String(id||'').trim().toLowerCase())||null;}
+function couponForPassenger(id){return couponRecords.filter(x=>String(x.passenger_id||'').toLowerCase()===String(id||'').trim().toLowerCase());}
+function fillPassenger(id,prefix){const p=passengerInfo(id), cs=couponForPassenger(id); document.getElementById(prefix+'Name').textContent=p?p.passenger_name:'-'; document.getElementById(prefix+'Client').textContent=p?p.client_id:'-'; document.getElementById(prefix+'Pnr').textContent=p?p.s_pnr:'-'; document.getElementById(prefix+'Net').textContent=p?'₹'+Number(p.net_amount||0).toFixed(2):'₹0.00'; const details={Sector:p?.sector,Airline:p?.airline,AirlineType:p?.fare_type,AirlinePnr:p?.airline_pnr,TravelStart:p?.travel_date,TravelEnd:p?.end_date,BookedDate:p?.booked_date}; Object.entries(details).forEach(([field,value])=>{const element=document.getElementById(prefix+field);if(element)element.textContent=value||'-';}); let points=cs.reduce((a,c)=>a+Number(c.points||0),0), available=cs.filter(c=>c.status==='AVAILABLE').reduce((a,c)=>a+Number(c.points||0),0); if(document.getElementById(prefix+'Points'))document.getElementById(prefix+'Points').textContent=points.toFixed(2); if(document.getElementById(prefix+'Amount'))document.getElementById(prefix+'Amount').textContent='₹'+(available/10).toFixed(2);}
+document.getElementById('earnPassengerId').addEventListener('input',e=>fillPassenger(e.target.value,'earn')); document.getElementById('redeemPassengerId').addEventListener('input',e=>fillPassenger(e.target.value,'redeem')); document.getElementById('reversePassengerId').addEventListener('input',e=>fillPassenger(e.target.value,'reverse'));
+</script>
 {% endblock %}
