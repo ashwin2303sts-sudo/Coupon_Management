@@ -4,7 +4,7 @@ button, input, select { font:inherit; }
 button { cursor:pointer; }
 button:disabled { cursor:not-allowed; }
 .app { min-height:100vh; display:flex; }
-.sidebar { width:268px; background:#0e172b; color:#fff; flex-shrink:0; min-height:100vh; position:fixed; left:0; top:0; bottom:0; overflow:auto; z-index:20; }
+.sidebar { width:285px; background:#0e172b; color:#fff; flex-shrink:0; min-height:100vh; position:fixed; left:0; top:0; bottom:0; overflow:auto; z-index:20; }
 .brand { height:72px; padding:20px 22px; font-size:24px; font-weight:800; border-bottom:1px solid #293247; letter-spacing:.5px; }
 .brand-icon { margin-right:8px; }
 nav { padding:16px 0 10px; }
@@ -140,8 +140,8 @@ nav { padding:16px 0 10px; }
 }
 
 @media (max-width: 768px) {
-    .sidebar { width:220px; }
-    .main { margin-left:220px; width:calc(100% - 220px); }
+    .sidebar { width:285px; }
+    .main { margin-left:285px; width:calc(100% - 285px); }
     .rules-guide-head { flex-direction:column; align-items:flex-start; }
     .rules-guide-head h2 { font-size:22px; }
     .rules-logic-grid { grid-template-columns:1fr; }
@@ -149,7 +149,7 @@ nav { padding:16px 0 10px; }
     .rules-flow-row { padding:10px 12px; }
     .rules-add-rule-block h2 { font-size:20px; }
 }
-.main { margin-left:265px; width:calc(100% - 265px); min-width:0; }
+.main { margin-left:285px; width:calc(100% - 285px); min-width:0; }
 .topbar { height:78px; background:white; border-bottom:1px solid #dce2ec; display:flex; align-items:center; padding:0 28px; gap:14px; position:sticky; top:0; z-index:10; }
 .topbar h1 { font-size:23px; margin:0; }
 .menu-btn { display:none; background:#24479a; color:white; border:0; border-radius:6px; padding:9px 13px; font-weight:700; }
