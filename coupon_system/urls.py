@@ -26,6 +26,7 @@ urlpatterns = [
     path("redemptions/clear-all/", views.clear_all_redemptions, name="clear_all_redemptions"),
     path("ledger/", views.ledger, name="ledger"),
     path("excel-upload/", views.excel_upload, name="excel_upload"),
+    path("excel-upload/template/", views.download_excel_template, name="download_excel_template"),
     path("rules/", views.rules, name="rules"),
     path("rules/add/", views.add_rule, name="add_rule"),
     path("rules/delete/", views.delete_rule, name="delete_rule"),

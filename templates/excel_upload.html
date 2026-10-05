@@ -1,24 +1,89 @@
 {% extends "base.html" %}
 {% block page_title %}Excel Upload{% endblock %}
 {% block content %}
-<div class="two-col">
-<div class="card"><div class="card-head"><h2>Bulk Booking & Passenger Upload</h2></div>
-<div class="info-box"><b>Supported Excel Format:</b><br>
-Accepts standard exports: Booked Date | Client | Client ID | Email | Mobile | S PNR | Airline PNR | Status | Booking Type | Username | Pax Name | Sector | Date of Travel | Parent PNR | Net Amount.<br><br>
-Coupons are automatically calculated and recorded to JSON.
-</div>
-<a class="btn success-btn" href="#" onclick="alert('Create an Excel file using the 15 headers shown on this page.'); return false;">DOWNLOAD EXCEL TEMPLATE (.XLSX)</a>
-<form method="post" enctype="multipart/form-data">{% csrf_token %}
-<div class="upload-box"><input type="file" name="excel_file" accept=".xlsx,.xls" required></div>
-<button class="btn primary full">PROCESS &amp; UPLOAD</button>
-</form></div>
+<div class="excel-upload-layout">
+    <div class="excel-upload-panel left-panel">
+        <div class="panel-header">
+            <h2>Bulk Booking &amp; Passenger Upload</h2>
+        </div>
 
-<div class="card"><div class="card-head"><h2>18-Column Format Reference</h2></div>
-<div class="table-wrap"><table><thead><tr><th>EXCEL HEADER</th><th>TYPE</th><th>EXAMPLE</th></tr></thead>
-<tbody>
-<tr><td>Booked Date</td><td>Date</td><td>2026-08-29 10:30</td></tr><tr><td class="required">Client ID</td><td>Required</td><td>CL-1001</td></tr><tr><td>Email</td><td>Email</td><td>booking@agency.com</td></tr><tr><td>Mobile</td><td>Phone</td><td>+91 9876543210</td></tr><tr><td class="required">S PNR</td><td>Required</td><td>SPNR78901</td></tr><tr><td>Passenger ID</td><td>String</td><td>PSN-1234</td></tr><tr><td>Airline PNR</td><td>String</td><td>6E-XY789</td></tr><tr><td>Status</td><td>String</td><td>Ticketed / Confirmed</td></tr><tr><td>Booking Type</td><td>String</td><td>Web Booking / Mobile App / Agent Booking / Offline/Counter</td></tr><tr><td>Travel Type</td><td>String</td><td>Round Trip / One Way</td></tr><tr><td>Username</td><td>String</td><td>agent_priya</td></tr><tr><td>Pax Name</td><td>String</td><td>MR RAHUL SHARMA</td></tr><tr><td>Sector</td><td>String</td><td>MAA-DXB</td></tr><tr><td>Travel Start Date</td><td>Date</td><td>2026-09-05</td></tr><tr><td>Travel End Date</td><td>Date</td><td>2026-09-09</td></tr><tr><td>Parent PNR</td><td>String</td><td>PARENT001</td></tr><tr><td>Net Amount</td><td>Number</td><td>3801</td></tr><tr><td>Client</td><td>String</td><td>ABC Holidays</td></tr>
-</tbody></table></div>
-<div class="note">Existing PNRs in JSON will be skipped automatically without duplicate records.</div>
+        <div class="info-box">
+            <div class="info-title">Supported Excel Format:</div>
+            <p>Accepts standard exports: Booked Date | Client ID | Client | Email | Mobile | S PNR | Passenger ID | Airline PNR | Status | Booking Type | Travel Type | Username | Pax Name | Sector | Date of Travel | Travel End Date | Parent PNR | Net Amount.</p>
+            <p class="info-note">Coupons are automatically calculated and recorded to the system.</p>
+        </div>
+
+        <a class="btn success-btn download-template-btn" href="{% url 'download_excel_template' %}">DOWNLOAD EXCEL TEMPLATE (.XLSX)</a>
+
+        <form method="post" enctype="multipart/form-data">{% csrf_token %}
+            <div class="upload-box">
+                <label class="upload-label" for="excel_file">Choose File</label>
+                <input id="excel_file" type="file" name="excel_file" accept=".xlsx,.xls" required>
+                <div id="file_name" class="file-name">No file chosen</div>
+            </div>
+            <button id="upload_submit" class="btn primary full" type="submit" disabled>PROCEED &amp; UPLOAD TO MYSQL</button>
+        </form>
+    </div>
+
+    <div class="excel-upload-panel right-panel">
+        <div class="panel-header">
+            <h2>18-Column Format Reference</h2>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Excel Header</th>
+                        <th>Type</th>
+                        <th>Example</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Booked Date</td><td>Date</td><td>2026-08-29 10:30</td></tr>
+                    <tr><td class="required">Client ID</td><td>Required</td><td>CL-1001</td></tr>
+                    <tr><td>Client</td><td>String</td><td>ABC Holidays</td></tr>
+                    <tr><td>Email</td><td>Email</td><td>booking@agency.com</td></tr>
+                    <tr><td>Mobile</td><td>Phone</td><td>+91 9876543210</td></tr>
+                    <tr><td class="required">S PNR</td><td>Required</td><td>SPNR78901</td></tr>
+                    <tr><td>Passenger ID</td><td>String</td><td>PSN-1234</td></tr>
+                    <tr><td>Airline PNR</td><td>String</td><td>6E-XY789</td></tr>
+                    <tr><td>Status</td><td>String</td><td>Ticketed / Confirmed</td></tr>
+                    <tr><td>Booking Type</td><td>String</td><td>Web Booking / Mobile App / Agent Booking / Offline/Counter</td></tr>
+                    <tr><td>Travel Type</td><td>String</td><td>Round Trip / One Way</td></tr>
+                    <tr><td>Username</td><td>String</td><td>agent_priya</td></tr>
+                    <tr><td>Pax Name</td><td>String</td><td>MR RAHUL SHARMA</td></tr>
+                    <tr><td>Sector</td><td>String</td><td>MAA-DXB</td></tr>
+                    <tr><td>Date of Travel</td><td>Date</td><td>2026-09-05</td></tr>
+                    <tr><td>Travel End Date</td><td>Date</td><td>2026-09-09</td></tr>
+                    <tr><td>Parent PNR</td><td>String</td><td>PARENT001</td></tr>
+                    <tr><td>Net Amount</td><td>Number</td><td>3801</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="note">Existing booking references are skipped automatically to prevent duplicates.</div>
+    </div>
 </div>
-</div>
+
+<script>
+    const excelInput = document.getElementById('excel_file');
+    const submitButton = document.getElementById('upload_submit');
+    const fileNameBox = document.getElementById('file_name');
+
+    function syncUploadState() {
+        const hasFile = !!(excelInput && excelInput.files && excelInput.files.length);
+        if (submitButton) {
+            submitButton.disabled = !hasFile;
+        }
+        if (fileNameBox) {
+            fileNameBox.textContent = hasFile ? excelInput.files[0].name : 'No file chosen';
+        }
+    }
+
+    if (excelInput) {
+        excelInput.addEventListener('change', syncUploadState);
+        syncUploadState();
+    }
+</script>
 {% endblock %}

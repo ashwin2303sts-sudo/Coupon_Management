@@ -1052,6 +1052,73 @@ def excel_upload(request):
 
 
 @admin_required
+def download_excel_template(request):
+    from openpyxl import Workbook
+
+    workbook = Workbook()
+    ws = workbook.active
+    ws.title = "Bookings"
+
+    headers = [
+        "Booked Date",
+        "Client ID",
+        "Client",
+        "Email",
+        "Mobile",
+        "S PNR",
+        "Passenger ID",
+        "Airline PNR",
+        "Status",
+        "Booking Type",
+        "Travel Type",
+        "Username",
+        "Pax Name",
+        "Sector",
+        "Date of Travel",
+        "Travel End Date",
+        "Parent PNR",
+        "Net Amount",
+    ]
+    ws.append(headers)
+    sample_row = [
+        "2026-08-29 10:30",
+        "CL-1001",
+        "ABC Travel",
+        "booking@agency.com",
+        "+91 9876543210",
+        "SPNR78901",
+        "PSN-1234",
+        "6E-XY789",
+        "Ticketed / Confirmed",
+        "Web Booking",
+        "Round Trip",
+        "agent_priya",
+        "MR RAHUL SHARMA",
+        "MAA-DXB",
+        "2026-09-05",
+        "2026-09-09",
+        "PARENT001",
+        "3801",
+    ]
+    ws.append(sample_row)
+
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            value = cell.value
+            if value is not None:
+                max_length = max(max_length, len(str(value)))
+        ws.column_dimensions[column].width = max(18, max_length + 2)
+
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = 'attachment; filename="coupon_booking_template.xlsx"'
+    workbook.save(response)
+    workbook.close()
+    return response
+
+
+@admin_required
 def rules(request):
     return render(request, "rules.html", page_context(request, rules=read("rules"), airlines=AIRLINES, airline_types=AIRLINE_TYPES))
 
