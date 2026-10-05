@@ -212,7 +212,7 @@ def read(name):
     if name == "bookings":
 
         bookings = Booking.objects.select_related("client").all().order_by(
-            "-created_at"
+            "-updated_at", "-created_at"
         )
 
         result = []

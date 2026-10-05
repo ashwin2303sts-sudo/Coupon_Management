@@ -1011,6 +1011,7 @@ def excel_upload(request):
             row_errors = []
             invalid_row_numbers = set()
             skipped_duplicates = 0
+            existing_pnr_set = set(existing_pnrs)
 
             for row_number, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 row = dict(zip(headers, values))
@@ -1018,7 +1019,7 @@ def excel_upload(request):
                     continue
 
                 spnr = str(row.get("S PNR") or "").strip()
-                if spnr and (spnr in existing_pnrs or spnr in imported_pnrs):
+                if spnr and spnr in imported_pnrs:
                     skipped_duplicates += 1
                     continue
 
@@ -1061,6 +1062,7 @@ def excel_upload(request):
                 imported_pnrs.add(spnr)
                 rows_to_import.append({
                     "s_pnr": spnr,
+                    "is_update": spnr in existing_pnr_set,
                     "client_id": str(row["Client ID"]).strip(),
                     "client": str(row.get("Client") or row["Client ID"]).strip(),
                     "passenger_id": str(row["Passenger ID"]).strip(),
@@ -1096,7 +1098,14 @@ def excel_upload(request):
 
             with transaction.atomic():
                 customers_by_id = Customer.objects.in_bulk({row["client_id"] for row in rows_to_import})
+                existing_bookings = {
+                    booking.pnr: booking
+                    for booking in Booking.objects.select_for_update().filter(
+                        pnr__in=[row["s_pnr"] for row in rows_to_import if row["is_update"]]
+                    )
+                }
                 new_bookings = []
+                updated = 0
                 for row in rows_to_import:
                     customer = customers_by_id.get(row["client_id"])
                     if customer is None:
@@ -1109,28 +1118,58 @@ def excel_upload(request):
                     final_amount, discount_percentage, _ = calculate_discounted_net(
                         row["base_amount"], row["airline"], row["fare_type"]
                     )
-                    new_bookings.append(Booking(
-                        pnr=row["s_pnr"],
-                        client=customer,
-                        passenger_name=row["passenger_name"],
-                        passenger_id=row["passenger_id"],
-                        sector=row["sector"],
-                        travel_date=row["travel_date"],
-                        end_date=row["end_date"],
-                        booked_date=row["booked_date"],
-                        net_amount=final_amount,
-                        base_amount=row["base_amount"],
-                        discount_percentage=discount_percentage,
-                        airline=row["airline"],
-                        fare_type=row["fare_type"],
-                        airline_pnr=row["airline_pnr"],
-                        booking_type=row["booking_type"],
-                        travel_type=row["travel_type"],
-                    ))
+                    booking = existing_bookings.get(row["s_pnr"])
+                    if booking is None:
+                        new_bookings.append(Booking(
+                            pnr=row["s_pnr"],
+                            client=customer,
+                            passenger_name=row["passenger_name"],
+                            passenger_id=row["passenger_id"],
+                            sector=row["sector"],
+                            travel_date=row["travel_date"],
+                            end_date=row["end_date"],
+                            booked_date=row["booked_date"],
+                            net_amount=final_amount,
+                            base_amount=row["base_amount"],
+                            discount_percentage=discount_percentage,
+                            airline=row["airline"],
+                            fare_type=row["fare_type"],
+                            airline_pnr=row["airline_pnr"],
+                            booking_type=row["booking_type"],
+                            travel_type=row["travel_type"],
+                        ))
+                        continue
+
+                    booking.client = customer
+                    booking.passenger_name = row["passenger_name"]
+                    booking.passenger_id = row["passenger_id"]
+                    booking.sector = row["sector"]
+                    booking.travel_date = row["travel_date"]
+                    booking.end_date = row["end_date"]
+                    booking.booked_date = row["booked_date"]
+                    booking.net_amount = final_amount
+                    booking.base_amount = row["base_amount"]
+                    booking.discount_percentage = discount_percentage
+                    booking.airline = row["airline"]
+                    booking.fare_type = row["fare_type"]
+                    booking.airline_pnr = row["airline_pnr"]
+                    booking.booking_type = row["booking_type"]
+                    booking.travel_type = row["travel_type"]
+                    booking.save(update_fields=[
+                        "client", "passenger_name", "passenger_id", "sector",
+                        "travel_date", "end_date", "booked_date", "net_amount",
+                        "base_amount", "discount_percentage", "airline", "fare_type",
+                        "airline_pnr", "booking_type", "travel_type", "updated_at",
+                    ])
+                    updated += 1
+
                 Booking.objects.bulk_create(new_bookings, batch_size=500)
                 added = len(new_bookings)
 
-            messages.success(request, f"Upload completed. {added} new booking(s) added.")
+            messages.success(
+                request,
+                f"Upload completed. {added} new booking(s) added and {updated} existing booking(s) updated.",
+            )
             if skipped_duplicates:
                 messages.warning(request, f"{skipped_duplicates} duplicate booking(s) skipped.")
             if invalid_row_numbers:
