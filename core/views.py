@@ -445,10 +445,8 @@ def bookings(request):
 @admin_required
 @require_POST
 def add_booking(request):
-    bookings = read("bookings")
-    customers = read("customers")
     client_id = request.POST.get("client_id", "").strip()
-    client_record = next((c for c in customers if c.get("id") == client_id), None)
+    client_record = Customer.objects.filter(id=client_id).first()
 
     required_fields = {
         "S PNR": request.POST.get("s_pnr", "").strip(),
@@ -467,28 +465,34 @@ def add_booking(request):
         "Booking Date": request.POST.get("booked_date", "").strip(),
     }
     missing = [label for label, value in required_fields.items() if not value]
-    if missing or not client_record:
+    if missing or client_record is None:
         messages.error(request, "Please fill all required booking fields: " + ", ".join(missing or ["valid Client ID"]) + ".")
         return redirect("bookings")
-    if any(b.get("s_pnr") == required_fields["S PNR"] for b in bookings):
+    if Booking.objects.filter(pnr=required_fields["S PNR"]).exists():
         messages.error(request, "This S PNR already exists.")
         return redirect("bookings")
 
     final_net, discount_pct, matched_rule = calculate_discounted_net(
         required_fields["Net Amount"], required_fields["Airline Name"], required_fields["Airline Type"]
     )
-    booking = {
-        "s_pnr": required_fields["S PNR"], "passenger_id": required_fields["Passenger ID"],
-        "passenger_name": required_fields["Passenger Name"], "client": client_record.get("name", client_id),
-        "client_id": client_id, "sector": required_fields["Sector"],
-        "booking_type": required_fields["Booking Type"], "travel_type": required_fields["Travel Type"],
-        "airline": required_fields["Airline Name"], "fare_type": required_fields["Airline Type"],
-        "airline_pnr": required_fields["Airline PNR"], "net_amount": money(final_net),
-        "base_amount": money(required_fields["Net Amount"]), "discount_percentage": money(discount_pct),
-        "travel_date": required_fields["Travel Start Date"], "end_date": required_fields["Travel End Date"],
-        "booked_date": required_fields["Booking Date"],
-    }
-    write("bookings", [booking] + bookings)
+    Booking.objects.create(
+        pnr=required_fields["S PNR"],
+        client=client_record,
+        passenger_id=required_fields["Passenger ID"],
+        passenger_name=required_fields["Passenger Name"],
+        sector=required_fields["Sector"],
+        booking_type=required_fields["Booking Type"],
+        travel_type=required_fields["Travel Type"],
+        airline=required_fields["Airline Name"],
+        fare_type=required_fields["Airline Type"],
+        airline_pnr=required_fields["Airline PNR"],
+        net_amount=decimal_value(final_net),
+        base_amount=decimal_value(required_fields["Net Amount"]),
+        discount_percentage=decimal_value(discount_pct),
+        travel_date=date_value(required_fields["Travel Start Date"]),
+        end_date=date_value(required_fields["Travel End Date"]),
+        booked_date=date_value(required_fields["Booking Date"]),
+    )
     messages.success(request, f"Booking added successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
 
@@ -496,15 +500,13 @@ def add_booking(request):
 @admin_required
 @require_POST
 def edit_booking(request):
-    bookings_data = read("bookings")
-    customers = read("customers")
     spnr = request.POST.get("s_pnr", "").strip()
-    booking = next((b for b in bookings_data if b.get("s_pnr") == spnr), None)
-    if not booking:
+    booking = Booking.objects.filter(pnr=spnr).first()
+    if booking is None:
         messages.error(request, "Booking not found.")
         return redirect("bookings")
     client_id = request.POST.get("client_id", "").strip()
-    client_record = next((c for c in customers if c.get("id") == client_id), None)
+    client_record = Customer.objects.filter(id=client_id).first()
     values = {
         "passenger_id": request.POST.get("passenger_id", "").strip(),
         "passenger_name": request.POST.get("passenger_name", "").strip(),
@@ -520,13 +522,26 @@ def edit_booking(request):
         "booked_date": request.POST.get("booked_date", "").strip(),
     }
     missing = [k for k,v in values.items() if not v]
-    if missing or not client_record:
+    if missing or client_record is None:
         messages.error(request, "All booking fields are compulsory. Please fill every field.")
         return redirect("bookings")
     final_net, discount_pct, matched_rule = calculate_discounted_net(values["net_amount"], values["airline"], values["fare_type"])
-    booking.update(values)
-    booking.update({"client": client_record["name"], "client_id": client_id, "net_amount": money(final_net), "base_amount": money(values["net_amount"]), "discount_percentage": money(discount_pct)})
-    write("bookings", bookings_data)
+    booking.client = client_record
+    booking.passenger_id = values["passenger_id"]
+    booking.passenger_name = values["passenger_name"]
+    booking.sector = values["sector"]
+    booking.booking_type = values["booking_type"]
+    booking.travel_type = values["travel_type"]
+    booking.airline = values["airline"]
+    booking.fare_type = values["fare_type"]
+    booking.airline_pnr = values["airline_pnr"]
+    booking.net_amount = decimal_value(final_net)
+    booking.base_amount = decimal_value(values["net_amount"])
+    booking.discount_percentage = decimal_value(discount_pct)
+    booking.travel_date = date_value(values["travel_date"])
+    booking.end_date = date_value(values["end_date"])
+    booking.booked_date = date_value(values["booked_date"])
+    booking.save()
     messages.success(request, f"Booking {spnr} updated successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
 
@@ -535,8 +550,13 @@ def edit_booking(request):
 @require_POST
 def delete_booking(request):
     spnr = request.POST.get("s_pnr", "").strip()
-    bookings_data = read("bookings")
-    write("bookings", [b for b in bookings_data if b.get("s_pnr") != spnr])
+    if not spnr:
+        messages.error(request, "S PNR is required to delete a booking.")
+        return redirect("bookings")
+    deleted_count, _ = Booking.objects.filter(pnr=spnr).delete()
+    if not deleted_count:
+        messages.error(request, "Booking not found.")
+        return redirect("bookings")
     messages.success(request, "Booking deleted.")
     return redirect("bookings")
 
@@ -989,6 +1009,8 @@ def excel_upload(request):
             imported_pnrs = set()
             rows_to_import = []
             row_errors = []
+            invalid_row_numbers = set()
+            skipped_duplicates = 0
 
             for row_number, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 row = dict(zip(headers, values))
@@ -997,6 +1019,7 @@ def excel_upload(request):
 
                 spnr = str(row.get("S PNR") or "").strip()
                 if spnr and (spnr in existing_pnrs or spnr in imported_pnrs):
+                    skipped_duplicates += 1
                     continue
 
                 missing_values = [
@@ -1005,6 +1028,7 @@ def excel_upload(request):
                 ]
                 if missing_values:
                     row_errors.append(f"Row {row_number}: missing " + ", ".join(missing_values))
+                    invalid_row_numbers.add(row_number)
                     continue
 
                 try:
@@ -1013,6 +1037,7 @@ def excel_upload(request):
                         raise InvalidOperation
                 except (InvalidOperation, TypeError, ValueError):
                     row_errors.append(f"Row {row_number}: Net Amount must be a number greater than or equal to 0")
+                    invalid_row_numbers.add(row_number)
                     continue
 
                 parsed_dates = {}
@@ -1026,6 +1051,7 @@ def excel_upload(request):
                         parsed_date = parsed_date.date()
                     if parsed_date is None:
                         row_errors.append(f"Row {row_number}: {header} must be a valid date")
+                        invalid_row_numbers.add(row_number)
                     else:
                         parsed_dates[field_name] = parsed_date
 
@@ -1036,6 +1062,7 @@ def excel_upload(request):
                 rows_to_import.append({
                     "s_pnr": spnr,
                     "client_id": str(row["Client ID"]).strip(),
+                    "client": str(row.get("Client") or row["Client ID"]).strip(),
                     "passenger_id": str(row["Passenger ID"]).strip(),
                     "passenger_name": str(row["Passenger Name"]).strip(),
                     "sector": str(row["Sector"]).strip(),
@@ -1048,27 +1075,37 @@ def excel_upload(request):
                     **parsed_dates,
                 })
 
-            if row_errors:
-                messages.error(request, "Excel upload stopped. " + "; ".join(row_errors[:5]))
+            if not rows_to_import:
+                if row_errors:
+                    messages.error(
+                        request,
+                        "No bookings were added. Correct these Excel rows and upload again: "
+                        + "; ".join(row_errors[:5]),
+                    )
+                elif skipped_duplicates:
+                    messages.warning(
+                        request,
+                        f"No new bookings added. {skipped_duplicates} duplicate S PNR(s) already exist.",
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        "No booking rows were found. Add booking data below the header row and upload again.",
+                    )
                 return redirect("excel_upload")
 
             with transaction.atomic():
                 customers_by_id = Customer.objects.in_bulk({row["client_id"] for row in rows_to_import})
-                unknown_client_ids = sorted({
-                    row["client_id"] for row in rows_to_import
-                    if row["client_id"] not in customers_by_id
-                })
-                if unknown_client_ids:
-                    messages.error(
-                        request,
-                        "Excel upload stopped. Register these Client ID(s) before importing: "
-                        + ", ".join(unknown_client_ids[:10]),
-                    )
-                    return redirect("excel_upload")
-
                 new_bookings = []
                 for row in rows_to_import:
                     customer = customers_by_id.get(row["client_id"])
+                    if customer is None:
+                        customer = get_or_create_customer({
+                            "client_id": row["client_id"],
+                            "client": row["client"],
+                        })
+                        customers_by_id[row["client_id"]] = customer
+
                     final_amount, discount_percentage, _ = calculate_discounted_net(
                         row["base_amount"], row["airline"], row["fare_type"]
                     )
@@ -1094,6 +1131,14 @@ def excel_upload(request):
                 added = len(new_bookings)
 
             messages.success(request, f"Upload completed. {added} new booking(s) added.")
+            if skipped_duplicates:
+                messages.warning(request, f"{skipped_duplicates} duplicate booking(s) skipped.")
+            if invalid_row_numbers:
+                messages.warning(
+                    request,
+                    f"{len(invalid_row_numbers)} invalid row(s) skipped: "
+                    + "; ".join(row_errors[:5]),
+                )
         except Exception as exc:
             messages.error(request, f"Excel processing error: {exc}")
             return redirect("excel_upload")
