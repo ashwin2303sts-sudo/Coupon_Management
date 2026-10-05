@@ -9,7 +9,7 @@
 
         <div class="info-box">
             <div class="info-title">Supported Excel Format:</div>
-            <p>Accepts standard exports: Booked Date | Client ID | Client | Email | Mobile | S PNR | Passenger ID | Airline PNR | Status | Booking Type | Travel Type | Username | Pax Name | Sector | Date of Travel | Travel End Date | Parent PNR | Net Amount.</p>
+            <p>Use the same required fields as Add Booking: S PNR | Client ID | Passenger ID | Passenger Name | Sector | Booking Type | Travel Type | Airline Name | Airline Type | Airline PNR | Net Amount | Travel Start Date | Travel End Date | Booking Date.</p>
             <p class="info-note">Coupons are automatically calculated and recorded to the system.</p>
         </div>
 
@@ -27,7 +27,7 @@
 
     <div class="excel-upload-panel right-panel">
         <div class="panel-header">
-            <h2>18-Column Format Reference</h2>
+            <h2>14-Column Add Booking Format</h2>
         </div>
 
         <div class="table-wrap">
@@ -40,29 +40,25 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td>Booked Date</td><td>Date</td><td>2026-08-29 10:30</td></tr>
-                    <tr><td class="required">Client ID</td><td>Required</td><td>CL-1001</td></tr>
-                    <tr><td>Client</td><td>String</td><td>ABC Holidays</td></tr>
-                    <tr><td>Email</td><td>Email</td><td>booking@agency.com</td></tr>
-                    <tr><td>Mobile</td><td>Phone</td><td>+91 9876543210</td></tr>
                     <tr><td class="required">S PNR</td><td>Required</td><td>SPNR78901</td></tr>
-                    <tr><td>Passenger ID</td><td>String</td><td>PSN-1234</td></tr>
-                    <tr><td>Airline PNR</td><td>String</td><td>6E-XY789</td></tr>
-                    <tr><td>Status</td><td>String</td><td>Ticketed / Confirmed</td></tr>
-                    <tr><td>Booking Type</td><td>String</td><td>Web Booking / Mobile App / Agent Booking / Offline/Counter</td></tr>
-                    <tr><td>Travel Type</td><td>String</td><td>Round Trip / One Way</td></tr>
-                    <tr><td>Username</td><td>String</td><td>agent_priya</td></tr>
-                    <tr><td>Pax Name</td><td>String</td><td>MR RAHUL SHARMA</td></tr>
-                    <tr><td>Sector</td><td>String</td><td>MAA-DXB</td></tr>
-                    <tr><td>Date of Travel</td><td>Date</td><td>2026-09-05</td></tr>
-                    <tr><td>Travel End Date</td><td>Date</td><td>2026-09-09</td></tr>
-                    <tr><td>Parent PNR</td><td>String</td><td>PARENT001</td></tr>
-                    <tr><td>Net Amount</td><td>Number</td><td>3801</td></tr>
+                    <tr><td class="required">Client ID</td><td>Required</td><td>CL-1001</td></tr>
+                    <tr><td class="required">Passenger ID</td><td>Required</td><td>PSN-1234</td></tr>
+                    <tr><td class="required">Passenger Name</td><td>Required</td><td>MR RAHUL SHARMA</td></tr>
+                    <tr><td class="required">Sector</td><td>Required</td><td>MAA-DXB</td></tr>
+                    <tr><td class="required">Booking Type</td><td>Required</td><td>Web Booking</td></tr>
+                    <tr><td class="required">Travel Type</td><td>Required</td><td>Round Trip</td></tr>
+                    <tr><td class="required">Airline Name</td><td>Required</td><td>IndiGo</td></tr>
+                    <tr><td class="required">Airline Type</td><td>Required</td><td>Economy Class</td></tr>
+                    <tr><td class="required">Airline PNR</td><td>Required</td><td>6E-XY789</td></tr>
+                    <tr><td class="required">Net Amount</td><td>Number</td><td>3801</td></tr>
+                    <tr><td class="required">Travel Start Date</td><td>Date</td><td>2026-09-05</td></tr>
+                    <tr><td class="required">Travel End Date</td><td>Date</td><td>2026-09-09</td></tr>
+                    <tr><td class="required">Booking Date</td><td>Date</td><td>2026-08-29</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <div class="note">Existing booking references are skipped automatically to prevent duplicates.</div>
+        <div class="note">All 14 columns are required, matching Add Booking. Use a Client ID already registered in Customers. Matching coupon rules are applied to Net Amount during import; existing S PNRs are skipped automatically.</div>
     </div>
 </div>
 

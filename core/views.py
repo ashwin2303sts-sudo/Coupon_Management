@@ -1,4 +1,5 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import json
 from functools import wraps
 
@@ -963,8 +964,23 @@ def excel_upload(request):
             ws = workbook.active
             headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
 
-            required = {"Client ID", "S PNR"}
-            missing = required - set(headers)
+            required_headers = [
+                "S PNR",
+                "Client ID",
+                "Passenger ID",
+                "Passenger Name",
+                "Sector",
+                "Booking Type",
+                "Travel Type",
+                "Airline Name",
+                "Airline Type",
+                "Airline PNR",
+                "Net Amount",
+                "Travel Start Date",
+                "Travel End Date",
+                "Booking Date",
+            ]
+            missing = set(required_headers) - set(headers)
             if missing:
                 messages.error(request, "Missing required columns: " + ", ".join(sorted(missing)))
                 return redirect("excel_upload")
@@ -972,66 +988,105 @@ def excel_upload(request):
             existing_pnrs = set(Booking.objects.values_list("pnr", flat=True))
             imported_pnrs = set()
             rows_to_import = []
+            row_errors = []
 
-            for values in ws.iter_rows(min_row=2, values_only=True):
+            for row_number, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 row = dict(zip(headers, values))
-                spnr = str(row.get("S PNR") or "").strip()
-                client_id = str(row.get("Client ID") or "").strip()
-                if not spnr or not client_id:
+                if not any(value is not None and str(value).strip() for value in values):
                     continue
-                if spnr in existing_pnrs or spnr in imported_pnrs:
-                    continue
-                imported_pnrs.add(spnr)
 
-                client = str(row.get("Client") or client_id).strip()
-                legacy_type = str(row.get("Booking Type") or "").strip()
-                booking_method = str(row.get("Booking Method") or "").strip()
-                if not booking_method:
-                    booking_method = legacy_type if legacy_type in {"Web Booking", "Mobile App", "Agent Booking", "Offline/Counter"} else "Web Booking"
-                travel_type = str(row.get("Travel Type") or "").strip()
-                if not travel_type and legacy_type in {"Round Trip", "One Way"}:
-                    travel_type = legacy_type
+                spnr = str(row.get("S PNR") or "").strip()
+                if spnr and (spnr in existing_pnrs or spnr in imported_pnrs):
+                    continue
+
+                missing_values = [
+                    header for header in required_headers
+                    if row.get(header) is None or not str(row.get(header)).strip()
+                ]
+                if missing_values:
+                    row_errors.append(f"Row {row_number}: missing " + ", ".join(missing_values))
+                    continue
+
+                try:
+                    base_amount = Decimal(str(row["Net Amount"]).strip())
+                    if not base_amount.is_finite() or base_amount < 0:
+                        raise InvalidOperation
+                except (InvalidOperation, TypeError, ValueError):
+                    row_errors.append(f"Row {row_number}: Net Amount must be a number greater than or equal to 0")
+                    continue
+
+                parsed_dates = {}
+                for header, field_name in (
+                    ("Travel Start Date", "travel_date"),
+                    ("Travel End Date", "end_date"),
+                    ("Booking Date", "booked_date"),
+                ):
+                    parsed_date = date_value(row[header])
+                    if isinstance(parsed_date, datetime):
+                        parsed_date = parsed_date.date()
+                    if parsed_date is None:
+                        row_errors.append(f"Row {row_number}: {header} must be a valid date")
+                    else:
+                        parsed_dates[field_name] = parsed_date
+
+                if len(parsed_dates) != 3:
+                    continue
+
+                imported_pnrs.add(spnr)
                 rows_to_import.append({
                     "s_pnr": spnr,
-                    "client_id": client_id,
-                    "client": client,
-                    "email": str(row.get("Email") or ""),
-                    "mobile": str(row.get("Mobile") or ""),
-                    "passenger_id": str(row.get("Passenger ID") or "").strip(),
-                    "passenger_name": str(row.get("Pax Name") or "").strip(),
-                    "sector": str(row.get("Sector") or "").strip(),
-                    "booking_type": booking_method,
-                    "travel_type": travel_type,
-                    "airline_pnr": str(row.get("Airline PNR") or "").strip(),
-                    "status": str(row.get("Status") or "Confirmed").strip(),
-                    "net_amount": money(row.get("Net Amount") or 0),
-                    "travel_date": date_value(row.get("Travel Start Date") or row.get("Date of Travel")),
-                    "end_date": date_value(row.get("Travel End Date")),
-                    "booked_date": date_value(row.get("Booked Date")) or timezone.localdate(),
+                    "client_id": str(row["Client ID"]).strip(),
+                    "passenger_id": str(row["Passenger ID"]).strip(),
+                    "passenger_name": str(row["Passenger Name"]).strip(),
+                    "sector": str(row["Sector"]).strip(),
+                    "booking_type": str(row["Booking Type"]).strip(),
+                    "travel_type": str(row["Travel Type"]).strip(),
+                    "airline": str(row["Airline Name"]).strip(),
+                    "fare_type": str(row["Airline Type"]).strip(),
+                    "airline_pnr": str(row["Airline PNR"]).strip(),
+                    "base_amount": base_amount,
+                    **parsed_dates,
                 })
+
+            if row_errors:
+                messages.error(request, "Excel upload stopped. " + "; ".join(row_errors[:5]))
+                return redirect("excel_upload")
 
             with transaction.atomic():
                 customers_by_id = Customer.objects.in_bulk({row["client_id"] for row in rows_to_import})
+                unknown_client_ids = sorted({
+                    row["client_id"] for row in rows_to_import
+                    if row["client_id"] not in customers_by_id
+                })
+                if unknown_client_ids:
+                    messages.error(
+                        request,
+                        "Excel upload stopped. Register these Client ID(s) before importing: "
+                        + ", ".join(unknown_client_ids[:10]),
+                    )
+                    return redirect("excel_upload")
+
                 new_bookings = []
                 for row in rows_to_import:
                     customer = customers_by_id.get(row["client_id"])
-                    if customer is None:
-                        customer = get_or_create_customer(row)
-                        customers_by_id[row["client_id"]] = customer
+                    final_amount, discount_percentage, _ = calculate_discounted_net(
+                        row["base_amount"], row["airline"], row["fare_type"]
+                    )
                     new_bookings.append(Booking(
                         pnr=row["s_pnr"],
                         client=customer,
                         passenger_name=row["passenger_name"],
-                        passenger_id=row["passenger_id"] or None,
-                        sector=row["sector"] or None,
+                        passenger_id=row["passenger_id"],
+                        sector=row["sector"],
                         travel_date=row["travel_date"],
                         end_date=row["end_date"],
                         booked_date=row["booked_date"],
-                        net_amount=row["net_amount"],
-                        email=row["email"] or None,
-                        mobile=row["mobile"] or None,
-                        airline_pnr=row["airline_pnr"] or None,
-                        status=row["status"],
+                        net_amount=final_amount,
+                        base_amount=row["base_amount"],
+                        discount_percentage=discount_percentage,
+                        airline=row["airline"],
+                        fare_type=row["fare_type"],
+                        airline_pnr=row["airline_pnr"],
                         booking_type=row["booking_type"],
                         travel_type=row["travel_type"],
                     ))
@@ -1060,45 +1115,37 @@ def download_excel_template(request):
     ws.title = "Bookings"
 
     headers = [
-        "Booked Date",
-        "Client ID",
-        "Client",
-        "Email",
-        "Mobile",
         "S PNR",
+        "Client ID",
         "Passenger ID",
-        "Airline PNR",
-        "Status",
+        "Passenger Name",
+        "Sector",
         "Booking Type",
         "Travel Type",
-        "Username",
-        "Pax Name",
-        "Sector",
-        "Date of Travel",
-        "Travel End Date",
-        "Parent PNR",
+        "Airline Name",
+        "Airline Type",
+        "Airline PNR",
         "Net Amount",
+        "Travel Start Date",
+        "Travel End Date",
+        "Booking Date",
     ]
     ws.append(headers)
     sample_row = [
-        "2026-08-29 10:30",
-        "CL-1001",
-        "ABC Travel",
-        "booking@agency.com",
-        "+91 9876543210",
         "SPNR78901",
+        "CL-1001",
         "PSN-1234",
-        "6E-XY789",
-        "Ticketed / Confirmed",
-        "Web Booking",
-        "Round Trip",
-        "agent_priya",
         "MR RAHUL SHARMA",
         "MAA-DXB",
+        "Web Booking",
+        "Round Trip",
+        "IndiGo",
+        "Economy Class",
+        "6E-XY789",
+        "3801",
         "2026-09-05",
         "2026-09-09",
-        "PARENT001",
-        "3801",
+        "2026-08-29",
     ]
     ws.append(sample_row)
 
