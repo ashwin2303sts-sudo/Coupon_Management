@@ -12,10 +12,20 @@ SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key-for-production")
 
 DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "127.0.0.1,localhost"
-).split(",")
+def env_list(name, default=""):
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "127.0.0.1,localhost")
+render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_host and render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_host)
+
+CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
+if render_host:
+    render_origin = f"https://{render_host}"
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
 
 TIME_ZONE = "Asia/Kolkata"
 
@@ -52,20 +62,22 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "coupon_system.wsgi.application"
 
-# MySQL database
+# MySQL / MariaDB / TiDB. Local XAMPP connections do not require TLS;
+# remote database providers can enable it with MYSQL_SSL_MODE.
+mysql_host = os.getenv("MYSQL_HOST", "127.0.0.1").strip()
+db_options = {"charset": "utf8mb4"}
+if mysql_host not in ("127.0.0.1", "localhost"):
+    db_options["ssl_mode"] = os.getenv("MYSQL_SSL_MODE", "REQUIRED").strip() or "REQUIRED"
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": os.getenv("MYSQL_DATABASE", "coupon_management"),
         "USER": os.getenv("MYSQL_USER", "root"),
         "PASSWORD": os.getenv("MYSQL_PASSWORD", ""),
-        "HOST": os.getenv("MYSQL_HOST", "127.0.0.1"),
+        "HOST": mysql_host,
         "PORT": os.getenv("MYSQL_PORT", "3306"),
-        "OPTIONS": {
-            "charset": "utf8mb4",
-            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
-            "ssl_mode": "REQUIRED",
-        },
+        "OPTIONS": db_options,
     }
 }
 
@@ -73,6 +85,10 @@ DATABASES = {
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
+if render_host:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]

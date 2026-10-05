@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: coupon-management
+    runtime: python
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: python manage.py migrate && gunicorn coupon_system.wsgi:application --bind 0.0.0.0:$PORT
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.1
+      - key: DEBUG
+        value: "False"
+      - key: MYSQL_DATABASE
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        sync: false
+      - key: MYSQL_SSL_MODE
+        value: REQUIRED
+      - key: SECRET_KEY
+        generateValue: true

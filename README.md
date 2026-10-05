@@ -110,6 +110,27 @@ Open:
 
 `http://127.0.0.1:8000/`
 
+## Deploy to Render
+
+This app uses MySQL, so Render needs a reachable external MySQL-compatible
+database (for example, TiDB Cloud); Render's managed database offering is
+PostgreSQL, which this project is not configured to use.
+
+1. Push the project to GitHub. Do not upload `.env` or the local `venv/`.
+2. Create the external database and its database/schema. Keep its host, port,
+   database name, username, and password available for Render's environment
+   variables.
+3. In Render, create a **Blueprint** from the GitHub repository and select
+   `render.yaml`.
+4. When prompted, enter the database values for `MYSQL_DATABASE`,
+   `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_HOST`, and `MYSQL_PORT`. Render
+   generates `SECRET_KEY`; keep all secrets in Render, not in GitHub.
+5. Deploy. The start command applies Django migrations before starting Gunicorn.
+
+Render provides the public hostname automatically. The app uses it for allowed
+hosts and HTTPS/CSRF handling. For local XAMPP, continue using `.env` and
+`127.0.0.1:3306`; the local database connection does not require TLS.
+
 ## Sidebar pages
 
 All sidebar links are connected to Django routes:
