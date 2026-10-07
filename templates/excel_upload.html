@@ -9,7 +9,7 @@
 
         <div class="info-box">
             <div class="info-title">Supported Excel Format:</div>
-            <p>Use the same required fields as Add Booking: S PNR | Client ID | Passenger ID | Passenger Name | Sector | Booking Type | Travel Type | Airline Name | Airline Type | Airline PNR | Net Amount | Travel Start Date | Travel End Date | Booking Date.</p>
+            <p>Use the same required fields as Add Booking: S PNR | Client ID | Passenger Name | Sector | Booking Type | Travel Type | Airline Name | Airline Type | Airline PNR | Net Amount | Travel Start Date | Travel End Date | Booking Date. Additional columns in older files are ignored.</p>
             <p class="info-note">Coupons are automatically calculated and recorded to the system.</p>
         </div>
 
@@ -27,7 +27,7 @@
 
     <div class="excel-upload-panel right-panel">
         <div class="panel-header">
-            <h2>14-Column Add Booking Format</h2>
+            <h2>13-Column Add Booking Format</h2>
         </div>
 
         <div class="table-wrap">
@@ -42,7 +42,6 @@
                 <tbody>
                     <tr><td class="required">S PNR</td><td>Required</td><td>SPNR78901</td></tr>
                     <tr><td class="required">Client ID</td><td>Required</td><td>CL-1001</td></tr>
-                    <tr><td class="required">Passenger ID</td><td>Required</td><td>PSN-1234</td></tr>
                     <tr><td class="required">Passenger Name</td><td>Required</td><td>MR RAHUL SHARMA</td></tr>
                     <tr><td class="required">Sector</td><td>Required</td><td>MAA-DXB</td></tr>
                     <tr><td class="required">Booking Type</td><td>Required</td><td>Web Booking</td></tr>
@@ -58,7 +57,7 @@
             </table>
         </div>
 
-        <div class="note">All 14 columns are required, matching Add Booking. A Client ID not yet registered is created automatically using that ID as the client name. Matching coupon rules are applied to Net Amount. If an S PNR already exists, its booking details are updated from this file; repeated S PNRs within the same file are skipped.</div>
+        <div class="note">All 13 columns are required, matching Add Booking. A Client ID not yet registered is created automatically using that ID as the client name. Matching coupon rules are applied to Net Amount. If an S PNR already exists, its booking details are updated from this file; repeated S PNRs within the same file are skipped.</div>
     </div>
 </div>
 

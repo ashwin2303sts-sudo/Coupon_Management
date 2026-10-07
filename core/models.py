@@ -46,12 +46,6 @@ class Customer(models.Model):
         primary_key=True
     )
 
-    passenger_id = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True
-    )
-
     name = models.CharField(
         max_length=150
     )
@@ -108,12 +102,6 @@ class Booking(models.Model):
 
     passenger_name = models.CharField(
         max_length=150
-    )
-
-    passenger_id = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True
     )
 
     sector = models.CharField(
@@ -638,6 +626,12 @@ class Rule(models.Model):
     fare_type = models.CharField(
         max_length=50,
         default="Any Fare Type"
+    )
+
+    flat_price = models.CharField(
+        max_length=50,
+        blank=True,
+        default=""
     )
 
     percentage = models.DecimalField(

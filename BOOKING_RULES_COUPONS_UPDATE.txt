@@ -1,7 +1,7 @@
 BOOKING / RULES / COUPONS UPDATE
 
 1. Booking Add Booking popup now contains:
-   S PNR, Client ID, Passenger ID, Passenger Name, Sector, Booking Type,
+   S PNR, Client ID, Passenger Name, Sector, Booking Type,
    Travel Type, Airline Name, Airline Type, Airline PNR, Net Amount,
    Travel Start Date, Travel End Date, Booking Date.
 2. All booking fields are compulsory.
@@ -10,20 +10,23 @@ BOOKING / RULES / COUPONS UPDATE
 4. Airline Type is a fixed select: Economy Class, Premium Class,
    Business Class, ANY CLASS.
 5. Booking Net Amount is calculated from the entered amount using the matching Rules discount.
-6. Passenger ID in the Booking table is clickable and opens the complete booking popup.
+6. Passenger Name in the Booking table is clickable and opens the complete booking popup.
    Save and Delete are available in the popup; the old Actions column was removed.
 7. Horizontal booking scrollbar is fixed at the bottom of the viewport.
-8. Rules page now uses Airline Name + Airline Type + Discount Percentage + Status.
+8. Rules page uses Airline Name + Airline Type + Flat Price Range + Discount Percentage + Status.
+   A matching fare range applies its configured percentage to the booking amount.
 9. Coupon points = Booking Net Amount / 100.
 10. Coupon status is PENDING before Travel Start Date and AVAILABLE on/after Travel Start Date.
 11. Coupon Amount = Available Points / 10. Before availability it is ₹0.00.
-12. Redeem Coupon uses Passenger ID, auto-fills details, consumes available coupon points,
+12. Earn, Redeem, and Reverse Coupon use Passenger Name and auto-fill details.
+    Redeem consumes available coupon points,
     subtracts Coupon Amount from Booking Net Amount, and records the redemption.
-13. Reverse Coupon uses Passenger ID, restores Coupon Amount x 10 points and adds Coupon Amount
+13. Reverse Coupon restores Coupon Amount x 10 points and adds Coupon Amount
     back to Booking Net Amount.
 
 DATABASE UPDATE
 - A migration was added: core/migrations/0008_booking_base_amount_discount.py
+- Migration 0013 permanently removes Passenger ID fields and their stored values.
 - Recommended command after replacing the project:
     python manage.py migrate
 - Direct MariaDB fallback SQL is in database/booking_coupon_rules_update.sql

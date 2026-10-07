@@ -57,6 +57,10 @@
                 <select name="fare_type" required>{% for x in airline_types %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select>
             </div>
             <div>
+                <label class="required-label">FLAT PRICE *</label>
+                <input type="text" name="flat_price" inputmode="decimal" placeholder="e.g. 10000 - 50000" required>
+            </div>
+            <div>
                 <label class="required-label">DISCOUNT PERCENTAGE (%) *</label>
                 <input type="number" min="0" max="100" step="0.01" name="percentage" placeholder="e.g. 3" required>
             </div>
@@ -81,6 +85,7 @@
                     <th>ID</th>
                     <th>AIRLINE NAME</th>
                     <th>AIRLINE TYPE</th>
+                    <th>FLAT PRICE RANGE</th>
                     <th>DISCOUNT %</th>
                     <th>STATUS</th>
                     <th>ACTION</th>
@@ -92,6 +97,7 @@
                     <td>{{ r.id }}</td>
                     <td>{{ r.airline|default:"ANY AIRLINE" }}</td>
                     <td>{{ r.fare_type|default:"ANY CLASS" }}</td>
+                    <td>{{ r.flat_price|default:"ANY AMOUNT" }}</td>
                     <td>{{ r.percentage }}%</td>
                     <td><span class="badge {% if r.status == 'Active' %}success{% else %}pending{% endif %}">{{ r.status }}</span></td>
                     <td>
@@ -102,7 +108,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6">No rules added.</td></tr>
+                <tr><td colspan="7">No rules added.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

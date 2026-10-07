@@ -8,6 +8,8 @@
         <h2>Client Directory</h2>
         <p>{{ customers|length }} registered client{% if customers|length != 1 %}s{% endif %}</p>
         <form class="portal-search-form" method="get">
+            {% if from_date %}<input type="hidden" name="from_date" value="{{ from_date }}">{% endif %}
+            {% if to_date %}<input type="hidden" name="to_date" value="{{ to_date }}">{% endif %}
             <label for="clientIdSearch">Client ID</label>
             <div class="portal-search-control"><input id="clientIdSearch" name="client_id" value="{{ client_query }}" placeholder="Search client ID"><button class="btn success-btn">SEARCH</button></div>
         </form>
@@ -17,31 +19,77 @@
         <p>{{ passenger_count }} registered passenger{% if passenger_count != 1 %}s{% endif %}</p>
         <form class="portal-search-form" method="get">
             {% if customer %}<input type="hidden" name="client_id" value="{{ customer.id }}">{% endif %}
-            <label for="passengerSearch">Passenger ID</label>
-            <div class="portal-search-control"><input id="passengerSearch" name="passenger_id" value="{{ passenger_query }}" placeholder="Enter passenger ID"><button class="btn success-btn">SEARCH</button></div>
+            {% if from_date %}<input type="hidden" name="from_date" value="{{ from_date }}">{% endif %}
+            {% if to_date %}<input type="hidden" name="to_date" value="{{ to_date }}">{% endif %}
+            <label for="passengerSearch">Passenger Name</label>
+            <div class="portal-search-control"><input id="passengerSearch" name="passenger_name" value="{{ passenger_query }}" placeholder="Search passenger name"><button class="btn success-btn">SEARCH</button></div>
         </form>
       </section>
     </div>
 </div>
 
 <div class="stats-grid">
-    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available|floatformat:2 }}</strong><small>Travel date started</small></div>
-    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending|floatformat:2 }}</strong><small>Before travel start date</small></div>
+    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available|floatformat:2 }}</strong><small>{% if date_filter_active %}Date filtered{% else %}Travel date started{% endif %}</small></div>
+    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending|floatformat:2 }}</strong><small>{% if date_filter_active %}Date filtered{% else %}Before travel start date{% endif %}</small></div>
     <div class="stat blue"><span>TOTAL COUPON POINTS</span><strong>{{ total_coupon_points|floatformat:2 }}</strong><small>Available + Pending</small></div>
     <div class="stat red"><span>TOTAL BOOKINGS</span><strong>{{ booking_count }}</strong><small>{{ customer_count }} Clients / Customers</small></div>
 </div>
 
 <div class="card">
-    <div class="card-head"><h2>Client Details</h2><div class="head-actions"><span class="count-pill">{{ client_summaries|length }} CLIENTS</span><a class="btn primary" href="{% url 'customers' %}">ADD CLIENT</a></div></div>
-    <div class="table-wrap"><table><thead><tr><th>S.NO</th><th>CLIENT ID</th><th>PASSENGERS</th><th>STATUS</th></tr></thead>
-    <tbody>{% for c in client_summaries %}<tr><td>{{ forloop.counter }}</td><td><b>{{ c.id }}</b></td><td>{{ c.passenger_count }}</td><td><span class="badge {% if c.status == 'ACTIVE' %}success{% else %}pending{% endif %}">{{ c.status|default:"ACTIVE" }}</span></td></tr>{% empty %}<tr><td colspan="4">{% if client_query %}No client found for this ID.{% else %}No clients yet. Add a client to get started.{% endif %}</td></tr>{% endfor %}</tbody></table></div>
+    <form class="cd-header" method="get" id="dateFilterForm" style="display: flex; align-items: flex-end; gap: 16px; padding: 20px 24px; border-bottom: 1px solid #e2e8f0; background-color: #f8fafc; border-radius: 8px 8px 0 0;">
+        {% if client_query %}<input type="hidden" name="client_id" value="{{ client_query }}">{% endif %}
+        {% if passenger_query %}<input type="hidden" name="passenger_name" value="{{ passenger_query }}">{% endif %}
+
+        <h2 class="cd-title" style="margin: 0; font-size: 20px; font-weight: 700; color: #1e293b; margin-right: auto; padding-bottom: 2px;">Client Details</h2>
+
+        <div class="cd-date-field" style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 0;">
+            <label for="fromDate" style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">From Date</label>
+            <input id="fromDate" type="date" name="from_date" value="{{ from_date }}" class="cd-date-input" style="height: 36px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 12px; font-size: 13px; color: #334155; box-sizing: border-box; outline: none; margin: 0;">
+        </div>
+
+        <div class="cd-date-field" style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 0;">
+            <label for="toDate" style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">To Date</label>
+            <input id="toDate" type="date" name="to_date" value="{{ to_date }}" class="cd-date-input" style="height: 36px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0 12px; font-size: 13px; color: #334155; box-sizing: border-box; outline: none; margin: 0;">
+        </div>
+
+        <button type="submit" id="dateFilterSearchBtn" style="height: 36px; background-color: #3b82f6; border: none; border-radius: 6px; color: white; font-weight: 600; font-size: 13px; padding: 0 20px; cursor: pointer; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2); box-sizing: border-box; margin: 0;">Search</button>
+
+        <span class="count-pill" style="height: 36px; display: inline-flex; align-items: center; background-color: #e2e8f0; border-radius: 6px; color: #334155; font-weight: 600; font-size: 13px; padding: 0 16px; box-sizing: border-box; margin: 0;">{{ client_summaries|length }} Clients</span>
+        <a href="{% url 'customers' %}" style="height: 36px; display: inline-flex; align-items: center; background-color: #10b981; border: none; border-radius: 6px; color: white; font-weight: 600; font-size: 13px; padding: 0 20px; text-decoration: none; box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2); box-sizing: border-box; margin: 0;">Add Client</a>
+    </form>
+
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>S.NO</th>
+                    <th>CLIENT ID</th>
+                    <th>PASSENGERS</th>
+                    <th>STATUS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in client_summaries %}
+                <tr>
+                    <td>{{ forloop.counter }}</td>
+                    <td><b>{{ c.id }}</b></td>
+                    <td>{{ c.passenger_count }}</td>
+                    <td><span class="badge {% if c.status == 'ACTIVE' %}success{% else %}pending{% endif %}">{{ c.status|default:"ACTIVE" }}</span></td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4">{% if client_query %}No client found for this ID.{% else %}No clients yet. Add a client to get started.{% endif %}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 {% if passenger_query %}
 <div class="card">
     <div class="card-head"><h2>Passenger Search Results</h2><span class="count-pill">{{ passenger_matches|length }} RECORDS</span></div>
-    <div id="passenger-search-results" class="table-wrap"><table><thead><tr><th>PASSENGER ID</th><th>S PNR</th><th>PASSENGER NAME</th><th>CLIENT ID</th><th>SECTOR</th><th>TRAVEL DATE</th></tr></thead>
-    <tbody>{% for b in passenger_matches %}<tr class="{% if selected_passenger_id == b.s_pnr %}selected-passenger-row{% endif %}"><td><a class="passenger-select-link" href="?client_id={{ customer.id|urlencode }}&passenger_id={{ passenger_query|urlencode }}&selected_passenger={{ b.s_pnr|urlencode }}">{{ b.passenger_id|default:"-" }}</a></td><td>{{ b.s_pnr }}</td><td>{{ b.passenger_name|default:"-" }}</td><td>{{ b.client_id }}</td><td>{{ b.sector|default:"-" }}</td><td>{{ b.travel_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="6">No passenger records found.</td></tr>{% endfor %}</tbody></table></div>
+    <div id="passenger-search-results" class="table-wrap"><table><thead><tr><th>S PNR</th><th>PASSENGER NAME</th><th>CLIENT ID</th><th>SECTOR</th><th>TRAVEL DATE</th></tr></thead>
+    <tbody>{% for b in passenger_matches %}<tr class="{% if selected_booking_ref == b.s_pnr %}selected-passenger-row{% endif %}"><td>{{ b.s_pnr }}</td><td><a class="passenger-select-link" href="?client_id={{ customer.id|urlencode }}&passenger_name={{ passenger_query|urlencode }}&selected_passenger={{ b.s_pnr|urlencode }}{% if from_date %}&from_date={{ from_date|urlencode }}{% endif %}{% if to_date %}&to_date={{ to_date|urlencode }}{% endif %}">{{ b.passenger_name|default:"-" }}</a></td><td>{{ b.client_id }}</td><td>{{ b.sector|default:"-" }}</td><td>{{ b.travel_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="5">No passenger records found.</td></tr>{% endfor %}</tbody></table></div>
 </div>
 {% if not selected_booking %}
 <script>
@@ -54,11 +102,11 @@
 <div class="modal-overlay show passenger-details-overlay" role="presentation">
     <section class="modal wide passenger-details-dialog" role="dialog" aria-modal="true" aria-labelledby="passengerDetailsTitle">
         <div class="passenger-modal-heading">
-            <div><span class="eyebrow">PASSENGER DETAILS</span><h2 id="passengerDetailsTitle">{{ selected_booking.passenger_name|default:"Passenger" }}</h2><p>Passenger ID: <b>{{ selected_booking.passenger_id|default:"-" }}</b></p></div>
+            <div><span class="eyebrow">PASSENGER DETAILS</span><h2 id="passengerDetailsTitle">{{ selected_booking.passenger_name|default:"Passenger" }}</h2></div>
             <div class="points-total available"><span>AVAILABLE</span><strong>{{ passenger_available|floatformat:2 }}</strong></div>
             <div class="points-total pending"><span>PENDING</span><strong>{{ passenger_pending|floatformat:2 }}</strong></div>
             <div class="points-total total"><span>TOTAL COUPON POINTS</span><strong>{{ passenger_points|floatformat:2 }}</strong></div>
-            <a class="btn secondary passenger-modal-close" href="?client_id={{ customer.id|urlencode }}&passenger_id={{ passenger_query|urlencode }}#passenger-search-results" aria-label="Close passenger details">CLOSE</a>
+            <a class="btn secondary passenger-modal-close" href="?client_id={{ customer.id|urlencode }}&passenger_name={{ passenger_query|urlencode }}{% if from_date %}&from_date={{ from_date|urlencode }}{% endif %}{% if to_date %}&to_date={{ to_date|urlencode }}{% endif %}#passenger-search-results" aria-label="Close passenger details">CLOSE</a>
         </div>
         <div class="card-head passenger-history-heading"><h2>Travel History</h2><span class="count-pill">{{ passenger_history|length }} TRIPS</span></div>
         <div class="table-wrap"><table class="travel-history-table"><thead><tr><th>S.NO</th><th>SECTOR</th><th>BOOKING TYPE</th><th>TRAVEL TYPE</th><th>TRAVEL START DATE</th><th>TRAVEL END DATE</th><th>BOOKED DATE</th><th>AMOUNT</th><th>STATUS</th></tr></thead>

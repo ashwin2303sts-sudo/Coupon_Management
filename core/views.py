@@ -40,18 +40,55 @@ def _normalise(value):
     return str(value or "").strip().casefold()
 
 
-def _rule_matches(rule, airline, airline_type):
+def _parse_flat_price_range(value):
+    raw_value = str(value or "").strip().replace(",", "")
+    if not raw_value or raw_value in {"0", "0.0", "0.00", "0.000", "0.0000"}:
+        return None
+    for separator in ("–", "—"):
+        raw_value = raw_value.replace(separator, "-")
+    parts = [part.strip() for part in raw_value.split("-")]
+    if len(parts) != 2:
+        raise ValueError("Enter a Flat Price range as minimum - maximum.")
+    try:
+        minimum, maximum = (Decimal(part) for part in parts)
+    except InvalidOperation as exc:
+        raise ValueError("Flat Price range must contain valid amounts.") from exc
+    if not minimum.is_finite() or not maximum.is_finite() or minimum < 0 or maximum < minimum:
+        raise ValueError("Flat Price range must be non-negative and the maximum must be at least the minimum.")
+    return minimum, maximum
+
+
+def _filter_passengers_by_name(bookings, query):
+    query = str(query or "").strip().casefold()
+    return [
+        booking for booking in bookings
+        if not query or query in str(booking.get("passenger_name", "")).casefold()
+    ]
+
+
+def _rule_matches(rule, airline, airline_type, base_amount=None):
     if str(rule.get("status", "Active")).casefold() != "active":
         return False
     rule_airline = str(rule.get("airline") or "ANY AIRLINE").strip()
     rule_type = str(rule.get("fare_type") or "ANY CLASS").strip()
     airline_ok = _normalise(rule_airline) in {_normalise(airline), "any airline"}
     type_ok = _normalise(rule_type) in {_normalise(airline_type), "any class"}
-    return airline_ok and type_ok
+    if not airline_ok or not type_ok:
+        return False
+    try:
+        price_range = _parse_flat_price_range(rule.get("flat_price"))
+    except ValueError:
+        return False
+    if price_range is None:
+        return True
+    if base_amount is None:
+        return False
+    amount = decimal_value(base_amount)
+    return price_range[0] <= amount <= price_range[1]
 
 
-def _find_matching_rule(airline, airline_type):
-    rules = [r for r in read("rules") if _rule_matches(r, airline, airline_type)]
+def _find_matching_rule(airline, airline_type, base_amount=None):
+    rules = [r for r in read("rules") if _rule_matches(r, airline, airline_type, base_amount)]
     if not rules:
         return None
     # Prefer exact airline + exact class, then progressively broader fallbacks.
@@ -61,13 +98,18 @@ def _find_matching_rule(airline, airline_type):
             score += 4
         if _normalise(rule.get("fare_type")) == _normalise(airline_type):
             score += 2
-        return score
+        price_range = _parse_flat_price_range(rule.get("flat_price"))
+        return (
+            score,
+            price_range is not None,
+            -(price_range[1] - price_range[0]) if price_range else Decimal(0),
+        )
     return sorted(rules, key=specificity, reverse=True)[0]
 
 
 def calculate_discounted_net(base_amount, airline, airline_type):
     base = decimal_value(base_amount)
-    rule = _find_matching_rule(airline, airline_type)
+    rule = _find_matching_rule(airline, airline_type, base)
     percentage = decimal_value(rule.get("percentage")) if rule else decimal_value(0)
     discount = (base * percentage) / decimal_value(100)
     final_amount = max(decimal_value(0), base - discount).quantize(decimal_value("0.01"))
@@ -77,7 +119,11 @@ def calculate_discounted_net(base_amount, airline, airline_type):
 def calculate_coupon(booking):
     amount = money(booking.get("net_amount"))
     points = round(amount / 100, 2)
-    return points, _find_matching_rule(booking.get("airline"), booking.get("fare_type"))
+    return points, _find_matching_rule(
+        booking.get("airline"),
+        booking.get("fare_type"),
+        booking.get("base_amount", amount),
+    )
 
 
 def _coupon_points(coupon, bookings=None):
@@ -120,7 +166,7 @@ def auto_release_coupons():
         if bool(c.get("is_released")) != released:
             c["is_released"] = released; changed = True
         if booking:
-            for key, value in (("travel_start_date", booking.get("travel_date", "")), ("travel_end_date", booking.get("end_date", "")), ("passenger_id", booking.get("passenger_id", "")), ("passenger_name", booking.get("passenger_name", ""))):
+            for key, value in (("travel_start_date", booking.get("travel_date", "")), ("travel_end_date", booking.get("end_date", "")), ("passenger_name", booking.get("passenger_name", ""))):
                 if c.get(key) != value:
                     c[key] = value; changed = True
     if changed:
@@ -208,6 +254,19 @@ def client_portal(request):
     selected_id = next((c["id"] for c in customers if c.get("id", "").casefold() == client_query.casefold()), "")
     customer = next((c for c in customers if c["id"] == selected_id), None)
 
+    # Date range filter params
+    from_date_str = request.GET.get("from_date", "").strip()
+    to_date_str = request.GET.get("to_date", "").strip()
+    try:
+        from_date_obj = date.fromisoformat(from_date_str) if from_date_str else None
+    except ValueError:
+        from_date_obj = None
+    try:
+        to_date_obj = date.fromisoformat(to_date_str) if to_date_str else None
+    except ValueError:
+        to_date_obj = None
+    date_filter_active = bool(from_date_obj or to_date_obj)
+
     all_bookings = read("bookings")
     for booking in all_bookings:
         if booking.get("booking_type") in {"Round Trip", "One Way"} and not booking.get("travel_type"):
@@ -215,16 +274,54 @@ def client_portal(request):
             booking["booking_type"] = "Web Booking"
         booking.setdefault("booking_type", "Web Booking")
         booking.setdefault("travel_type", "")
+
+    # All bookings for this client (before date filter)
     bookings = [b for b in all_bookings if not selected_id or b.get("client_id") == selected_id]
+
+    # Apply date range filter on bookings for date-filtered stats
+    def _booking_in_range(b):
+        td_raw = b.get("travel_date")
+        if not td_raw:
+            return False
+        try:
+            td = date.fromisoformat(str(td_raw)[:10])
+        except ValueError:
+            return False
+        if from_date_obj and td < from_date_obj:
+            return False
+        if to_date_obj and td > to_date_obj:
+            return False
+        return True
+
+    # Filtered bookings for date-range stats (only when a client is selected)
+    filtered_bookings = [b for b in bookings if _booking_in_range(b)] if date_filter_active else bookings
+
+    # Passenger keys from filtered bookings
+    filtered_passenger_keys = {
+        str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+        for b in filtered_bookings
+    }
+    filtered_passenger_keys.discard("")
+
+    # All passenger keys (unfiltered) for the overall count
     passenger_keys = {
-        str(b.get("passenger_id") or b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+        str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
         for b in bookings
     }
     passenger_keys.discard("")
+
     all_coupons = auto_release_coupons()
     coupons = [c for c in all_coupons if not selected_id or c.get("customer_id") == selected_id]
-    available = sum(_coupon_points(c, all_bookings) for c in coupons if c.get("status") == "AVAILABLE")
-    pending = sum(_coupon_points(c, all_bookings) for c in coupons if c.get("status") == "PENDING")
+
+    # For date-filtered coupon stats: only include coupons whose booking travel_date is in range
+    if date_filter_active:
+        filtered_booking_spnrs = {b.get("s_pnr") for b in filtered_bookings}
+        filtered_coupons = [c for c in coupons if c.get("booking_ref") in filtered_booking_spnrs]
+    else:
+        filtered_coupons = coupons
+
+    available = sum(_coupon_points(c, all_bookings) for c in filtered_coupons if c.get("status") == "AVAILABLE")
+    pending = sum(_coupon_points(c, all_bookings) for c in filtered_coupons if c.get("status") == "PENDING")
     total_coupon_points = available + pending
     earned = sum(_coupon_points(c, all_bookings) for c in coupons if c.get("status") in ["PENDING", "AVAILABLE", "REDEEMED"])
     customer_count = 1 if customer else len(customers)
@@ -232,37 +329,44 @@ def client_portal(request):
     for client in customers:
         client_bookings = [b for b in all_bookings if b.get("client_id") == client.get("id")]
         client_passenger_keys = {
-            str(b.get("passenger_id") or b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+            str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
             for b in client_bookings
         }
         client_passenger_keys.discard("")
-        client_summaries.append({**client, "passenger_count": len(client_passenger_keys)})
+        # When date filter is active, compute filtered passenger count per client
+        if date_filter_active:
+            filtered_client_bookings = [b for b in client_bookings if _booking_in_range(b)]
+            filtered_client_pax_keys = {
+                str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+                for b in filtered_client_bookings
+            }
+            filtered_client_pax_keys.discard("")
+            client_summaries.append({
+                **client,
+                "passenger_count": len(filtered_client_pax_keys),
+                "total_passenger_count": len(client_passenger_keys),
+            })
+        else:
+            client_summaries.append({**client, "passenger_count": len(client_passenger_keys), "total_passenger_count": len(client_passenger_keys)})
     if client_query:
         client_summaries = [
             client for client in client_summaries
             if client_query.casefold() in str(client.get("id", "")).casefold()
         ]
 
-    passenger_query = request.GET.get("passenger_id", "").strip()
-    passenger_matches = [
-        b for b in bookings
-        if not passenger_query or passenger_query.casefold() in " ".join((
-            str(b.get("passenger_id", "")), str(b.get("passenger_name", ""))
-        )).casefold()
-    ]
-    selected_passenger_id = request.GET.get("selected_passenger", "").strip()
+    passenger_query = request.GET.get("passenger_name", "").strip()
+    passenger_matches = _filter_passengers_by_name(bookings, passenger_query)
+    selected_booking_ref = request.GET.get("selected_passenger", "").strip()
     selected_booking = next(
-        (b for b in bookings if b.get("s_pnr") == selected_passenger_id), None
+        (b for b in bookings if b.get("s_pnr") == selected_booking_ref), None
     )
     passenger_history = []
     passenger_points = 0
     if selected_booking:
         passenger_name = str(selected_booking.get("passenger_name") or "").strip()
-        passenger_id = str(selected_booking.get("passenger_id") or "").strip()
         passenger_history = [
             dict(b) for b in bookings
-            if passenger_id and str(b.get("passenger_id") or "").strip().casefold() == passenger_id.casefold()
-            or not passenger_id and passenger_name and str(b.get("passenger_name") or "").strip().casefold() == passenger_name.casefold()
+            if passenger_name and str(b.get("passenger_name") or "").strip().casefold() == passenger_name.casefold()
         ] or [dict(selected_booking)]
         for trip in passenger_history:
             trip["history_end_date"] = trip.get("end_date") or trip.get("travel_date") or "-"
@@ -272,8 +376,7 @@ def client_portal(request):
             )
         passenger_coupons = [
             c for c in all_coupons
-            if str(c.get("passenger_id") or "").strip().casefold() == passenger_id.casefold()
-            or (not passenger_id and str(c.get("passenger_name") or "").strip().casefold() == passenger_name.casefold())
+            if str(c.get("passenger_name") or "").strip().casefold() == passenger_name.casefold()
             or c.get("booking_ref") in {h.get("s_pnr") for h in passenger_history}
         ]
         passenger_available = sum(_coupon_points(c, all_bookings) for c in passenger_coupons if c.get("status") == "AVAILABLE")
@@ -287,10 +390,10 @@ def client_portal(request):
         client_query=client_query,
         customer=customer,
         bookings=bookings,
-        passenger_count=len(passenger_keys),
+        passenger_count=len(filtered_passenger_keys) if date_filter_active else len(passenger_keys),
         passenger_matches=passenger_matches,
         passenger_query=passenger_query,
-        selected_passenger_id=selected_passenger_id,
+        selected_booking_ref=selected_booking_ref,
         selected_booking=selected_booking,
         passenger_history=passenger_history,
         passenger_points=passenger_points,
@@ -303,6 +406,9 @@ def client_portal(request):
         total_coupon_points=total_coupon_points,
         booking_count=len(bookings),
         customer_count=customer_count,
+        from_date=from_date_str,
+        to_date=to_date_str,
+        date_filter_active=date_filter_active,
     ))
 
 
@@ -319,14 +425,12 @@ def customers(request):
         if not client_bookings:
             customer_rows.append({
                 **customer,
-                "passenger_id": customer.get("passenger_id", "-"),
                 "booking_type": "-",
                 "travel_type": "-",
                 "travel_start": "-",
                 "travel_end": "-",
                 "booked_date": "-",
                 "amount": 0,
-                "edit_passenger_id": customer.get("passenger_id", ""),
             })
             continue
 
@@ -338,14 +442,12 @@ def customers(request):
                 booking_type = "Web Booking"
             customer_rows.append({
                 **customer,
-                "passenger_id": booking.get("passenger_id") or customer.get("passenger_id", "-"),
                 "booking_type": booking_type,
                 "travel_type": travel_type,
                 "travel_start": booking.get("travel_date") or "-",
                 "travel_end": booking.get("end_date") or booking.get("travel_date") or "-",
                 "booked_date": booking.get("booked_date") or "-",
                 "amount": money(booking.get("net_amount")),
-                "edit_passenger_id": customer.get("passenger_id", ""),
             })
 
     return render(request, "customers.html", page_context(request, customers=customer_rows))
@@ -357,13 +459,12 @@ def add_customer(request):
     customers = read("customers")
     redirect_to = "bookings" if request.POST.get("return_to") == "bookings" else "customers"
     customer_id = request.POST.get("id", "").strip()
-    passenger_id = request.POST.get("passenger_id", "").strip()
     name = request.POST.get("name", "").strip()
     email = request.POST.get("email", "").strip()
     phone = request.POST.get("phone", "").strip()
 
-    if not all((customer_id, passenger_id, name, email, phone)):
-        messages.error(request, "Client ID, Passenger ID, name, email, and phone are required.")
+    if not all((customer_id, name, email, phone)):
+        messages.error(request, "Client ID, name, email, and phone are required.")
         return redirect(redirect_to)
 
     if any(c["id"] == customer_id for c in customers):
@@ -372,7 +473,6 @@ def add_customer(request):
 
     customers.insert(0, {
         "id": customer_id,
-        "passenger_id": passenger_id,
         "name": name,
         "email": email,
         "phone": phone,
@@ -392,15 +492,13 @@ def edit_customer(request):
     if not customer:
         messages.error(request, "Customer not found.")
         return redirect("customers")
-    passenger_id = request.POST.get("passenger_id", "").strip()
     name = request.POST.get("name", "").strip()
     email = request.POST.get("email", "").strip()
     phone = request.POST.get("phone", "").strip()
-    if not all((passenger_id, name, email, phone)):
-        messages.error(request, "Passenger ID, name, email, and phone are required.")
+    if not all((name, email, phone)):
+        messages.error(request, "Name, email, and phone are required.")
         return redirect("customers")
     customer.update({
-        "passenger_id": passenger_id,
         "name": name,
         "email": email,
         "phone": phone,
@@ -433,7 +531,11 @@ def bookings(request):
         booking.setdefault("airline", "")
         booking.setdefault("fare_type", "ANY CLASS")
     if q:
-        data = [b for b in data if q in str(b).lower()]
+        searchable_fields = ("s_pnr", "passenger_name", "airline", "sector")
+        data = [
+            b for b in data
+            if q in " ".join(str(b.get(field, "")) for field in searchable_fields).casefold()
+        ]
     return render(request, "bookings.html", page_context(
         request, bookings=data, search=q, customers=read("customers"),
         airlines=AIRLINES, airline_types=AIRLINE_TYPES,
@@ -451,7 +553,6 @@ def add_booking(request):
     required_fields = {
         "S PNR": request.POST.get("s_pnr", "").strip(),
         "Client ID": client_id,
-        "Passenger ID": request.POST.get("passenger_id", "").strip(),
         "Passenger Name": request.POST.get("passenger_name", "").strip(),
         "Sector": request.POST.get("sector", "").strip(),
         "Booking Type": request.POST.get("booking_type", "").strip(),
@@ -478,7 +579,6 @@ def add_booking(request):
     Booking.objects.create(
         pnr=required_fields["S PNR"],
         client=client_record,
-        passenger_id=required_fields["Passenger ID"],
         passenger_name=required_fields["Passenger Name"],
         sector=required_fields["Sector"],
         booking_type=required_fields["Booking Type"],
@@ -508,7 +608,6 @@ def edit_booking(request):
     client_id = request.POST.get("client_id", "").strip()
     client_record = Customer.objects.filter(id=client_id).first()
     values = {
-        "passenger_id": request.POST.get("passenger_id", "").strip(),
         "passenger_name": request.POST.get("passenger_name", "").strip(),
         "sector": request.POST.get("sector", "").strip(),
         "booking_type": request.POST.get("booking_type", "").strip(),
@@ -527,7 +626,6 @@ def edit_booking(request):
         return redirect("bookings")
     final_net, discount_pct, matched_rule = calculate_discounted_net(values["net_amount"], values["airline"], values["fare_type"])
     booking.client = client_record
-    booking.passenger_id = values["passenger_id"]
     booking.passenger_name = values["passenger_name"]
     booking.sector = values["sector"]
     booking.booking_type = values["booking_type"]
@@ -570,7 +668,7 @@ def coupons(request):
     passenger_records = []
     for b in bookings_data:
         passenger_records.append({
-            "passenger_id": b.get("passenger_id", ""), "passenger_name": b.get("passenger_name", ""),
+            "passenger_name": b.get("passenger_name", ""),
             "client_id": b.get("client_id", ""), "client_name": b.get("client", ""),
             "s_pnr": b.get("s_pnr", ""), "net_amount": money(b.get("net_amount")),
             "sector": b.get("sector", ""), "airline": b.get("airline", ""),
@@ -578,9 +676,17 @@ def coupons(request):
             "travel_date": b.get("travel_date", ""), "end_date": b.get("end_date", ""),
             "booked_date": b.get("booked_date", ""),
         })
+    coupon_records_for_ui = [
+        {
+            "passenger_name": coupon.get("passenger_name", ""),
+            "points": coupon.get("points", 0),
+            "status": coupon.get("status", ""),
+        }
+        for coupon in coupon_data
+    ]
     return render(request, "coupons.html", page_context(
         request, coupons=coupon_data, customers=read("customers"), bookings=bookings_data,
-        passenger_records=passenger_records, passenger_records_json=json.dumps(passenger_records), coupon_records_json=json.dumps(coupon_data), available_points=available_points, pending_points=pending_points,
+        passenger_records=passenger_records, passenger_records_json=json.dumps(passenger_records), coupon_records_json=json.dumps(coupon_records_for_ui), available_points=available_points, pending_points=pending_points,
         total_coupon_points=available_points + pending_points,
     ))
 
@@ -588,13 +694,13 @@ def coupons(request):
 @admin_required
 @require_POST
 def earn_coupon(request):
-    passenger_id = request.POST.get("passenger_id", "").strip()
-    if not passenger_id:
-        messages.error(request, "Passenger ID is required.")
+    passenger_name = request.POST.get("passenger_name", "").strip()
+    if not passenger_name:
+        messages.error(request, "Passenger Name is required.")
         return redirect("coupons")
-    booking = Booking.objects.select_related("client").filter(passenger_id=passenger_id).order_by("-created_at").first()
+    booking = Booking.objects.select_related("client").filter(passenger_name__iexact=passenger_name).order_by("-created_at").first()
     if not booking:
-        messages.error(request, "Passenger ID not found in Bookings.")
+        messages.error(request, "Passenger Name not found in Bookings.")
         return redirect("coupons")
     customer = booking.client
     booking_ref = booking.pnr
@@ -645,23 +751,23 @@ def release_coupon(request):
     return redirect("coupons")
 
 
-def _booking_for_passenger(passenger_id):
-    return Booking.objects.select_related("client").filter(passenger_id=passenger_id).order_by("-created_at").first()
+def _booking_for_passenger_name(passenger_name):
+    return Booking.objects.select_related("client").filter(passenger_name__iexact=passenger_name).order_by("-created_at").first()
 
 
 @admin_required
 @require_POST
 def redeem_coupon(request):
-    passenger_id = request.POST.get("passenger_id", "").strip()
-    if not passenger_id:
-        messages.error(request, "Passenger ID is required.")
+    passenger_name = request.POST.get("passenger_name", "").strip()
+    if not passenger_name:
+        messages.error(request, "Passenger Name is required.")
         return redirect("coupons")
-    booking = _booking_for_passenger(passenger_id)
+    booking = _booking_for_passenger_name(passenger_name)
     if not booking:
-        messages.error(request, "Passenger ID not found.")
+        messages.error(request, "Passenger Name not found.")
         return redirect("coupons")
     customer = booking.client
-    available = list(Coupon.objects.select_related("booking", "customer").filter(customer=customer, status="AVAILABLE", booking__passenger_id=passenger_id).order_by("-created_at"))
+    available = list(Coupon.objects.select_related("booking", "customer").filter(customer=customer, status="AVAILABLE", booking__passenger_name__iexact=passenger_name).order_by("-created_at"))
     available = [c for c in available if decimal_value(c.amount) > 0][:1]
     if not available:
         messages.error(request, "Coupon is not AVAILABLE yet. It becomes available only on/after Travel Start Date.")
@@ -697,17 +803,17 @@ def redeem_coupon(request):
 @admin_required
 @require_POST
 def reverse_coupon(request):
-    passenger_id = request.POST.get("passenger_id", "").strip()
-    if not passenger_id:
-        messages.error(request, "Passenger ID is required.")
+    passenger_name = request.POST.get("passenger_name", "").strip()
+    if not passenger_name:
+        messages.error(request, "Passenger Name is required.")
         return redirect("coupons")
-    booking = _booking_for_passenger(passenger_id)
+    booking = _booking_for_passenger_name(passenger_name)
     if not booking:
-        messages.error(request, "Passenger ID not found.")
+        messages.error(request, "Passenger Name not found.")
         return redirect("coupons")
     redemption = Redemption.objects.filter(booking_ref=booking.pnr, status__in=["COMPLETED", "SUCCESS"]).order_by("-date").first()
     if not redemption:
-        messages.error(request, "No completed redemption was found for this Passenger ID.")
+        messages.error(request, "No completed redemption was found for this passenger.")
         return redirect("coupons")
     restored_amount = decimal_value(redemption.redeemed_amount or redemption.amount)
     restored_points = (restored_amount * decimal_value(10)).quantize(decimal_value("0.01"))
@@ -974,7 +1080,7 @@ def excel_upload(request):
     if request.method == "POST":
         upload = request.FILES.get("excel_file")
         if not upload:
-            messages.error(request, "Please select an Excel file.")
+            messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
             return redirect("excel_upload")
 
         workbook = None
@@ -987,7 +1093,6 @@ def excel_upload(request):
             required_headers = [
                 "S PNR",
                 "Client ID",
-                "Passenger ID",
                 "Passenger Name",
                 "Sector",
                 "Booking Type",
@@ -1002,7 +1107,7 @@ def excel_upload(request):
             ]
             missing = set(required_headers) - set(headers)
             if missing:
-                messages.error(request, "Missing required columns: " + ", ".join(sorted(missing)))
+                messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
                 return redirect("excel_upload")
 
             existing_pnrs = set(Booking.objects.values_list("pnr", flat=True))
@@ -1019,6 +1124,9 @@ def excel_upload(request):
                     continue
 
                 spnr = str(row.get("S PNR") or "").strip()
+                if spnr and spnr in existing_pnr_set:
+                    messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
+                    return redirect("excel_upload")
                 if spnr and spnr in imported_pnrs:
                     skipped_duplicates += 1
                     continue
@@ -1065,7 +1173,6 @@ def excel_upload(request):
                     "is_update": spnr in existing_pnr_set,
                     "client_id": str(row["Client ID"]).strip(),
                     "client": str(row.get("Client") or row["Client ID"]).strip(),
-                    "passenger_id": str(row["Passenger ID"]).strip(),
                     "passenger_name": str(row["Passenger Name"]).strip(),
                     "sector": str(row["Sector"]).strip(),
                     "booking_type": str(row["Booking Type"]).strip(),
@@ -1078,22 +1185,7 @@ def excel_upload(request):
                 })
 
             if not rows_to_import:
-                if row_errors:
-                    messages.error(
-                        request,
-                        "No bookings were added. Correct these Excel rows and upload again: "
-                        + "; ".join(row_errors[:5]),
-                    )
-                elif skipped_duplicates:
-                    messages.warning(
-                        request,
-                        f"No new bookings added. {skipped_duplicates} duplicate S PNR(s) already exist.",
-                    )
-                else:
-                    messages.warning(
-                        request,
-                        "No booking rows were found. Add booking data below the header row and upload again.",
-                    )
+                messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
                 return redirect("excel_upload")
 
             with transaction.atomic():
@@ -1124,7 +1216,6 @@ def excel_upload(request):
                             pnr=row["s_pnr"],
                             client=customer,
                             passenger_name=row["passenger_name"],
-                            passenger_id=row["passenger_id"],
                             sector=row["sector"],
                             travel_date=row["travel_date"],
                             end_date=row["end_date"],
@@ -1142,7 +1233,6 @@ def excel_upload(request):
 
                     booking.client = customer
                     booking.passenger_name = row["passenger_name"]
-                    booking.passenger_id = row["passenger_id"]
                     booking.sector = row["sector"]
                     booking.travel_date = row["travel_date"]
                     booking.end_date = row["end_date"]
@@ -1156,7 +1246,7 @@ def excel_upload(request):
                     booking.booking_type = row["booking_type"]
                     booking.travel_type = row["travel_type"]
                     booking.save(update_fields=[
-                        "client", "passenger_name", "passenger_id", "sector",
+                        "client", "passenger_name", "sector",
                         "travel_date", "end_date", "booked_date", "net_amount",
                         "base_amount", "discount_percentage", "airline", "fare_type",
                         "airline_pnr", "booking_type", "travel_type", "updated_at",
@@ -1166,10 +1256,7 @@ def excel_upload(request):
                 Booking.objects.bulk_create(new_bookings, batch_size=500)
                 added = len(new_bookings)
 
-            messages.success(
-                request,
-                f"Upload completed. {added} new booking(s) added and {updated} existing booking(s) updated.",
-            )
+            messages.success(request, "Booking Added Sucessfully")
             if skipped_duplicates:
                 messages.warning(request, f"{skipped_duplicates} duplicate booking(s) skipped.")
             if invalid_row_numbers:
@@ -1179,13 +1266,13 @@ def excel_upload(request):
                     + "; ".join(row_errors[:5]),
                 )
         except Exception as exc:
-            messages.error(request, f"Excel processing error: {exc}")
+            messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
             return redirect("excel_upload")
         finally:
             if workbook is not None:
                 workbook.close()
 
-        return redirect("bookings")
+        return redirect("excel_upload")
 
     return render(request, "excel_upload.html", page_context(request))
 
@@ -1201,7 +1288,6 @@ def download_excel_template(request):
     headers = [
         "S PNR",
         "Client ID",
-        "Passenger ID",
         "Passenger Name",
         "Sector",
         "Booking Type",
@@ -1218,7 +1304,6 @@ def download_excel_template(request):
     sample_row = [
         "SPNR78901",
         "CL-1001",
-        "PSN-1234",
         "MR RAHUL SHARMA",
         "MAA-DXB",
         "Web Booking",
@@ -1259,6 +1344,16 @@ def rules(request):
 def add_rule(request):
     airline = request.POST.get("airline", "").strip() or "ANY AIRLINE"
     airline_type = request.POST.get("fare_type", "ANY CLASS").strip() or "ANY CLASS"
+    flat_price = request.POST.get("flat_price", "").strip()
+    try:
+        price_range = _parse_flat_price_range(flat_price)
+    except ValueError as exc:
+        messages.error(request, str(exc))
+        return redirect("rules")
+    if price_range is None:
+        messages.error(request, "Flat Price range is required.")
+        return redirect("rules")
+    flat_price = f"{price_range[0]:f} - {price_range[1]:f}"
     try:
         percentage = money(request.POST.get("percentage", 0))
     except (TypeError, ValueError):
@@ -1267,7 +1362,14 @@ def add_rule(request):
         messages.error(request, "Discount percentage must be between 0 and 100.")
         return redirect("rules")
     rules_data = read("rules")
-    rules_data.append({"id": new_id("RULE"), "airline": airline, "fare_type": airline_type, "percentage": percentage, "status": request.POST.get("status", "Active")})
+    rules_data.append({
+        "id": new_id("RULE"),
+        "airline": airline,
+        "fare_type": airline_type,
+        "flat_price": flat_price,
+        "percentage": percentage,
+        "status": request.POST.get("status", "Active"),
+    })
     write("rules", rules_data)
     messages.success(request, "Rule created successfully.")
     return redirect("rules")

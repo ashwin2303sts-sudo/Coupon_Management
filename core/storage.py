@@ -116,7 +116,6 @@ def get_or_create_customer(data):
             "name": customer_name,
             "email": data.get("email") or None,
             "phone": data.get("phone") or data.get("mobile") or None,
-            "passenger_id": data.get("passenger_id") or None,
             "status": data.get("status", "ACTIVE"),
         },
     )
@@ -134,10 +133,6 @@ def get_or_create_customer(data):
 
         if data.get("phone") and customer.phone != data.get("phone"):
             customer.phone = data.get("phone")
-            changed = True
-
-        if data.get("passenger_id"):
-            customer.passenger_id = data.get("passenger_id")
             changed = True
 
         if changed:
@@ -185,7 +180,6 @@ def read(name):
             {
                 "id": customer.id,
                 "customer_id": customer.id,
-                "passenger_id": customer.passenger_id,
                 "name": customer.name,
                 "email": customer.email or "",
                 "phone": customer.phone or "",
@@ -229,7 +223,6 @@ def read(name):
                     "client_id": booking.client_id,
 
                     "passenger_name": booking.passenger_name,
-                    "passenger_id": booking.passenger_id or "",
 
                     "sector": booking.sector or "",
 
@@ -359,12 +352,6 @@ def read(name):
                         if coupon.booking and coupon.booking.end_date
                         else ""
                     ),
-                    "passenger_id": (
-                        coupon.booking.passenger_id
-                        if coupon.booking
-                        else ""
-                    ),
-
                     "redeemed_amount": money(
                         coupon.redeemed_amount
                     ),
@@ -543,6 +530,7 @@ def read(name):
                 "supplier": rule.supplier or "",
                 "airline": rule.airline or "",
                 "fare_type": rule.fare_type,
+                "flat_price": rule.flat_price or "",
                 "percentage": float(rule.percentage),
                 "status": rule.status,
             }
@@ -684,10 +672,6 @@ def write(name, value):
                         "passenger_name",
                         ""
                     ),
-
-                    "passenger_id": row.get(
-                        "passenger_id"
-                    ) or None,
 
                     "sector": row.get(
                         "sector"
@@ -1199,6 +1183,11 @@ def write(name, value):
                     "fare_type": row.get(
                         "fare_type",
                         "Any Fare Type"
+                    ),
+
+                    "flat_price": row.get(
+                        "flat_price",
+                        ""
                     ),
 
                     "percentage": decimal_value(

@@ -26,6 +26,12 @@ setTimeout(function() {
         setTimeout(() => el.remove(), 500);
     });
 }, 4500);
+setTimeout(function() {
+    document.querySelectorAll(".excel-upload-toast").forEach(function(el) {
+        el.style.opacity = "0";
+        setTimeout(() => el.remove(), 500);
+    });
+}, 3000);
 
 
 /* ============================================================

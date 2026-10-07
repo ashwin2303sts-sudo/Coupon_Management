@@ -8,7 +8,7 @@ Fixed in this build:
 5. Release Coupon sets is_released=1 and available_date when travel has started.
 6. Redeem Coupon records redemption allocations and ledger transaction while preserving release state.
 7. Reverse Coupon restores allocated coupon balances, marks the redemption REVERSED, and writes a reversal ledger row.
-8. Coupon read data exposes points, passenger ID, travel start/end, and release state consistently.
+8. Coupon read data keeps passenger-name display data, points, travel start/end, and release state consistent.
 
 Run after extracting:
 python -m pip install -r requirements.txt

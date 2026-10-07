@@ -732,6 +732,9 @@ table tbody tr:hover{background:#f6f9ff}
 .alert.error{background:#fee2e2;color:#d62c3c;border:1px solid #fecaca}
 .alert.warning{background:#fff3c4;color:#a66a00;border:1px solid #fde68a}
 .alert.info{background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe}
+.excel-upload-toast{position:fixed;left:calc(265px + (100% - 265px)/2);bottom:30px;z-index:1100;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;min-width:min(420px,calc(100vw - 32px));transition:opacity .4s}
+.excel-upload-toast .alert{margin:0;box-shadow:0 8px 24px rgba(18,33,61,.18)}
+@media(max-width:900px){.excel-upload-toast{left:50%}}
 
 /* Action icon buttons */
 .btn-icon{background:none;border:1px solid #dce2ec;border-radius:6px;padding:4px 8px;font-size:14px;cursor:pointer;transition:background .2s}
@@ -800,3 +803,115 @@ html, body { max-width:100%; overflow-x:hidden; }
 .booking-table-wrap table { min-width:1700px; table-layout:auto; }
 .ledger-table-wrap table { min-width:1100px; table-layout:auto; }
 .rdm-table-card .rdm-data-table { min-width:1200px; table-layout:auto; }
+
+/* ============================================================
+   CLIENT PORTAL – Single-row "Client Details" card header
+   ============================================================ */
+
+/* The whole header bar is the <form> — one flex row, never wraps on desktop */
+.cd-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid #e9eef6;
+    flex-wrap: nowrap;
+    background: #fff;
+    border-radius: 12px 12px 0 0;
+}
+
+.cd-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
+    color: #17253d;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-right: 4px;
+}
+
+/* Each date field: label stacked above input */
+.cd-date-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.cd-date-field label {
+    font-size: 9px;
+    font-weight: 700;
+    color: #7b8aa1;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    white-space: nowrap;
+}
+
+.cd-date-input {
+    height: 32px;
+    border: 1.5px solid #d6dde8;
+    border-radius: 6px;
+    padding: 0 6px;
+    font-size: 12px;
+    background: #f7f9fc;
+    color: #1a2840;
+    width: 130px;
+    transition: border-color .15s, box-shadow .15s;
+}
+.cd-date-input:focus {
+    outline: none;
+    border-color: #3d82ee;
+    box-shadow: 0 0 0 3px rgba(61,130,238,.12);
+    background: #fff;
+}
+
+/* Search button */
+.cd-search-btn {
+    height: 32px;
+    padding: 0 14px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-shadow: 0 3px 10px rgba(37,99,235,.18);
+    transition: transform .12s, box-shadow .15s;
+    align-self: flex-end;
+}
+.cd-search-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(37,99,235,.26);
+}
+
+/* Count pill + ADD CLIENT pushed to the far right */
+.cd-right-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+/* Active filter badge row (full-width strip below the header) */
+.cd-filter-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%);
+    border-bottom: 1px solid #bfdbfe;
+    padding: 5px 20px;
+    font-size: 12px;
+    color: #1e40af;
+    font-weight: 600;
+    animation: cdFadeIn .2s ease;
+}
+@keyframes cdFadeIn {
+    from { opacity:0; transform:translateY(-4px); }
+    to   { opacity:1; transform:translateY(0); }
+}
+
+@media(max-width: 960px) {
+    .cd-header { flex-wrap: wrap; }
+    .cd-right-actions { margin-left: 0; }
+    .cd-date-input { width: 110px; }
+}
