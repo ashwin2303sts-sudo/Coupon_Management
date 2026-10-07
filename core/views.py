@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import logging
 import json
 from functools import wraps
 
@@ -34,6 +35,7 @@ AIRLINES = [
 AIRLINE_TYPES = ["Economy Class", "Premium Class", "Business Class", "ANY CLASS"]
 BOOKING_METHODS = ["Web Booking", "Mobile App", "Agent Booking", "Offline/Counter"]
 TRAVEL_TYPES = ["Round Trip", "One Way"]
+logger = logging.getLogger(__name__)
 
 
 def _normalise(value):
@@ -1075,12 +1077,54 @@ def ledger(request):
     ))
 
 
+def _normalise_excel_header(value):
+    return "".join(character for character in str(value or "").casefold() if character.isalnum())
+
+
+def _canonical_excel_headers(headers):
+    aliases = {
+        "spnr": "S PNR",
+        "pnr": "S PNR",
+        "bookingpnr": "S PNR",
+        "clientid": "Client ID",
+        "customerid": "Client ID",
+        "passengername": "Passenger Name",
+        "name": "Passenger Name",
+        "sector": "Sector",
+        "bookingtype": "Booking Type",
+        "traveltype": "Travel Type",
+        "airlinename": "Airline Name",
+        "airline": "Airline Name",
+        "airlinetype": "Airline Type",
+        "faretype": "Airline Type",
+        "airlinepnr": "Airline PNR",
+        "netamount": "Net Amount",
+        "amount": "Net Amount",
+        "travelstartdate": "Travel Start Date",
+        "traveldate": "Travel Start Date",
+        "travelenddate": "Travel End Date",
+        "enddate": "Travel End Date",
+        "bookingdate": "Booking Date",
+        "bookeddate": "Booking Date",
+    }
+    return [
+        aliases.get(_normalise_excel_header(header), str(header or "").strip())
+        for header in headers
+    ]
+
+
+def _add_excel_upload_failure(request, details=None):
+    messages.error(request, "Something Went Wrong")
+    if details:
+        messages.warning(request, details)
+
+
 @admin_required
 def excel_upload(request):
     if request.method == "POST":
         upload = request.FILES.get("excel_file")
         if not upload:
-            messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
+            _add_excel_upload_failure(request, "Choose an .xlsx workbook and try again.")
             return redirect("excel_upload")
 
         workbook = None
@@ -1088,7 +1132,8 @@ def excel_upload(request):
             from openpyxl import load_workbook
             workbook = load_workbook(upload, read_only=True, data_only=True)
             ws = workbook.active
-            headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
+            raw_headers = [str(c.value).strip() if c.value is not None else "" for c in ws[1]]
+            headers = _canonical_excel_headers(raw_headers)
 
             required_headers = [
                 "S PNR",
@@ -1107,7 +1152,10 @@ def excel_upload(request):
             ]
             missing = set(required_headers) - set(headers)
             if missing:
-                messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
+                _add_excel_upload_failure(
+                    request,
+                    "Missing required Excel columns: " + ", ".join(sorted(missing)) + ".",
+                )
                 return redirect("excel_upload")
 
             existing_pnrs = set(Booking.objects.values_list("pnr", flat=True))
@@ -1115,7 +1163,6 @@ def excel_upload(request):
             rows_to_import = []
             row_errors = []
             invalid_row_numbers = set()
-            skipped_duplicates = 0
             existing_pnr_set = set(existing_pnrs)
 
             for row_number, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
@@ -1124,11 +1171,9 @@ def excel_upload(request):
                     continue
 
                 spnr = str(row.get("S PNR") or "").strip()
-                if spnr and spnr in existing_pnr_set:
-                    messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
-                    return redirect("excel_upload")
                 if spnr and spnr in imported_pnrs:
-                    skipped_duplicates += 1
+                    row_errors.append(f"Row {row_number}: S PNR {spnr} is duplicated in this workbook.")
+                    invalid_row_numbers.add(row_number)
                     continue
 
                 missing_values = [
@@ -1141,7 +1186,8 @@ def excel_upload(request):
                     continue
 
                 try:
-                    base_amount = Decimal(str(row["Net Amount"]).strip())
+                    raw_amount = str(row["Net Amount"]).strip().replace(",", "").replace("₹", "")
+                    base_amount = Decimal(raw_amount)
                     if not base_amount.is_finite() or base_amount < 0:
                         raise InvalidOperation
                 except (InvalidOperation, TypeError, ValueError):
@@ -1166,6 +1212,10 @@ def excel_upload(request):
 
                 if len(parsed_dates) != 3:
                     continue
+                if not spnr:
+                    row_errors.append(f"Row {row_number}: S PNR is required.")
+                    invalid_row_numbers.add(row_number)
+                    continue
 
                 imported_pnrs.add(spnr)
                 rows_to_import.append({
@@ -1184,8 +1234,15 @@ def excel_upload(request):
                     **parsed_dates,
                 })
 
-            if not rows_to_import:
-                messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
+            if not rows_to_import or invalid_row_numbers:
+                details = (
+                    "; ".join(row_errors[:5])
+                    if row_errors
+                    else "No booking rows were found in the worksheet."
+                )
+                if len(row_errors) > 5:
+                    details += f"; and {len(row_errors) - 5} more row error(s)."
+                _add_excel_upload_failure(request, details)
                 return redirect("excel_upload")
 
             with transaction.atomic():
@@ -1256,17 +1313,17 @@ def excel_upload(request):
                 Booking.objects.bulk_create(new_bookings, batch_size=500)
                 added = len(new_bookings)
 
-            messages.success(request, "Booking Added Sucessfully")
-            if skipped_duplicates:
-                messages.warning(request, f"{skipped_duplicates} duplicate booking(s) skipped.")
-            if invalid_row_numbers:
-                messages.warning(
-                    request,
-                    f"{len(invalid_row_numbers)} invalid row(s) skipped: "
-                    + "; ".join(row_errors[:5]),
-                )
-        except Exception as exc:
-            messages.error(request, "Something Went Wront Or Duplicate Details not Allowed")
+            messages.success(request, "Booking Added Successfully")
+            messages.info(
+                request,
+                f"Excel upload complete: {added} booking(s) added and {updated} booking(s) updated.",
+            )
+        except Exception:
+            logger.exception("Excel booking upload failed")
+            _add_excel_upload_failure(
+                request,
+                "The workbook could not be imported. Check that it is a valid .xlsx file and that all S PNR values are unique.",
+            )
             return redirect("excel_upload")
         finally:
             if workbook is not None:

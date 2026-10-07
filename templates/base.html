@@ -44,18 +44,16 @@
         </header>
 
         <section class="content">
-            {% if messages %}
-                {% if request.resolver_match.url_name == 'excel_upload' %}
+            {% if messages and request.resolver_match.url_name == 'excel_upload' %}
                     <div class="excel-upload-toast">
                         {% for message in messages %}
                             <div class="alert {{ message.tags }}">{{ message }}</div>
                         {% endfor %}
                     </div>
-                {% else %}
-                    {% for message in messages %}
-                        <div class="alert {{ message.tags }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
+            {% elif messages %}
+                {% for message in messages %}
+                    <div class="alert {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
             {% block content %}{% endblock %}
         </section>
@@ -80,7 +78,7 @@
     </div>
 </div>
 
-{% if messages %}
+{% if messages and request.resolver_match.url_name != 'excel_upload' %}
 <div class="toast-container">
     {% for message in messages %}
         <div class="toast {% if message.tags %}toast-{{ message.tags }}{% endif %}">
@@ -125,14 +123,6 @@
             toast.style.opacity = '0';
             setTimeout(() => toast.remove(), 500);
         });
-        
-        // Auto redirect after 3 seconds for excel upload success
-        {% if request.resolver_match.url_name == 'excel_upload' %}
-            const hasSuccess = Array.from(toasts).some(t => t.classList.contains('toast-success'));
-            if (hasSuccess) {
-                window.location.href = "{% url 'bookings' %}";
-            }
-        {% endif %}
     }, 3000);
 </script>
 {% endif %}

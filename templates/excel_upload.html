@@ -9,7 +9,7 @@
 
         <div class="info-box">
             <div class="info-title">Supported Excel Format:</div>
-            <p>Use the same required fields as Add Booking: S PNR | Client ID | Passenger Name | Sector | Booking Type | Travel Type | Airline Name | Airline Type | Airline PNR | Net Amount | Travel Start Date | Travel End Date | Booking Date. Additional columns in older files are ignored.</p>
+            <p>Upload an .xlsx workbook with the required fields shown below. Passenger ID or other additional columns are ignored. Common header variations (for example PNR, Customer ID, Fare Type, Amount, or Travel Date) are also accepted.</p>
             <p class="info-note">Coupons are automatically calculated and recorded to the system.</p>
         </div>
 
@@ -18,10 +18,10 @@
         <form method="post" enctype="multipart/form-data">{% csrf_token %}
             <div class="upload-box">
                 <label class="upload-label" for="excel_file">Choose File</label>
-                <input id="excel_file" type="file" name="excel_file" accept=".xlsx,.xls" required>
+                <input id="excel_file" type="file" name="excel_file" accept=".xlsx" required>
                 <div id="file_name" class="file-name">No file chosen</div>
             </div>
-            <button id="upload_submit" class="btn primary full" type="submit" disabled>PROCEED &amp; UPLOAD TO MYSQL</button>
+            <button id="upload_submit" class="btn primary full" type="submit">PROCEED &amp; UPLOAD TO MYSQL</button>
         </form>
     </div>
 
