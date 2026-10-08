@@ -47,8 +47,19 @@ def migrate_booking_primary_key(apps, schema_editor):
         if "id" not in booking_columns:
             cursor.execute(
                 f"ALTER TABLE {quote('bookings')} "
-                f"ADD COLUMN {quote('id')} BIGINT NOT NULL AUTO_INCREMENT, "
-                f"ADD UNIQUE KEY {quote('booking_id_unique')} ({quote('id')})"
+                f"ADD COLUMN {quote('id')} BIGINT NULL"
+            )
+            cursor.execute(f"SELECT {quote('pnr')} FROM {quote('bookings')} WHERE {quote('id')} IS NULL")
+            import uuid
+            for (pnr_val,) in cursor.fetchall():
+                gen_id = uuid.uuid4().int & ((1 << 63) - 1)
+                cursor.execute(
+                    f"UPDATE {quote('bookings')} SET {quote('id')} = %s WHERE {quote('pnr')} = %s AND {quote('id')} IS NULL",
+                    [gen_id, pnr_val],
+                )
+            cursor.execute(
+                f"ALTER TABLE {quote('bookings')} "
+                f"MODIFY {quote('id')} BIGINT NOT NULL"
             )
 
         cursor.execute(
@@ -82,14 +93,9 @@ def migrate_booking_primary_key(apps, schema_editor):
             None,
         )
         if not primary_key or primary_key.get("columns") != ["id"]:
-            primary_key_changes = []
             if primary_key:
-                primary_key_changes.append("DROP PRIMARY KEY")
-            primary_key_changes.append(f"ADD PRIMARY KEY ({quote('id')})")
-            cursor.execute(
-                f"ALTER TABLE {quote('bookings')} "
-                + ", ".join(primary_key_changes)
-            )
+                cursor.execute(f"ALTER TABLE {quote('bookings')} DROP PRIMARY KEY")
+            cursor.execute(f"ALTER TABLE {quote('bookings')} ADD PRIMARY KEY ({quote('id')})")
 
         constraints = connection.introspection.get_constraints(cursor, "bookings")
         if "booking_id_unique" in constraints:

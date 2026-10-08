@@ -1,4 +1,9 @@
 from django.db import models
+import uuid
+
+
+def generate_booking_id():
+    return uuid.uuid4().int & ((1 << 63) - 1)
 
 
 # ============================================================
@@ -93,8 +98,9 @@ class Booking(models.Model):
         ("Cancelled", "Cancelled"),
     ]
 
-    id = models.BigAutoField(
-        primary_key=True
+    id = models.BigIntegerField(
+        primary_key=True,
+        default=generate_booking_id,
     )
 
     pnr = models.CharField(
