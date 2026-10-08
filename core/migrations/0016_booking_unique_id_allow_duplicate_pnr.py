@@ -3,6 +3,129 @@
 from django.db import migrations, models
 
 
+def migrate_booking_primary_key(apps, schema_editor):
+    connection = schema_editor.connection
+    quote = connection.ops.quote_name
+    required_columns = {
+        "bookings": {"pnr"},
+        "coupons": {"booking_id"},
+        "ledger": {"booking_id"},
+        "redemptions": {"booking_id"},
+    }
+
+    with connection.cursor() as cursor:
+        for table, required in required_columns.items():
+            columns = {
+                column.name
+                for column in connection.introspection.get_table_description(cursor, table)
+            }
+            missing = required - columns
+            if missing:
+                raise RuntimeError(
+                    f"Cannot migrate booking IDs: {table} is missing "
+                    f"{', '.join(sorted(missing))}."
+                )
+
+        for table in ("coupons", "ledger"):
+            constraints = connection.introspection.get_constraints(cursor, table)
+            for name, constraint in constraints.items():
+                foreign_key = constraint.get("foreign_key")
+                if (
+                    constraint.get("columns") == ["booking_id"]
+                    and foreign_key
+                    and foreign_key[0] == "bookings"
+                ):
+                    cursor.execute(
+                        f"ALTER TABLE {quote(table)} "
+                        f"DROP FOREIGN KEY {quote(name)}"
+                    )
+
+        booking_columns = {
+            column.name
+            for column in connection.introspection.get_table_description(cursor, "bookings")
+        }
+        if "id" not in booking_columns:
+            cursor.execute(
+                f"ALTER TABLE {quote('bookings')} "
+                f"ADD COLUMN {quote('id')} BIGINT NOT NULL AUTO_INCREMENT, "
+                f"ADD UNIQUE KEY {quote('booking_id_unique')} ({quote('id')})"
+            )
+
+        cursor.execute(
+            "UPDATE coupons c JOIN bookings b ON b.pnr = c.booking_id "
+            "SET c.booking_id = b.id"
+        )
+        cursor.execute(
+            "UPDATE ledger l JOIN bookings b ON b.pnr = l.booking_id "
+            "SET l.booking_id = b.id"
+        )
+        cursor.execute(
+            "UPDATE redemptions r JOIN bookings b ON b.pnr = r.booking_id "
+            "SET r.booking_id = CAST(b.id AS CHAR)"
+        )
+        cursor.execute(
+            f"ALTER TABLE {quote('coupons')} "
+            f"MODIFY {quote('booking_id')} BIGINT NULL"
+        )
+        cursor.execute(
+            f"ALTER TABLE {quote('ledger')} "
+            f"MODIFY {quote('booking_id')} BIGINT NULL"
+        )
+
+        constraints = connection.introspection.get_constraints(cursor, "bookings")
+        primary_key = next(
+            (
+                constraint
+                for constraint in constraints.values()
+                if constraint.get("primary_key")
+            ),
+            None,
+        )
+        if not primary_key or primary_key.get("columns") != ["id"]:
+            primary_key_changes = []
+            if primary_key:
+                primary_key_changes.append("DROP PRIMARY KEY")
+            primary_key_changes.append(f"ADD PRIMARY KEY ({quote('id')})")
+            cursor.execute(
+                f"ALTER TABLE {quote('bookings')} "
+                + ", ".join(primary_key_changes)
+            )
+
+        constraints = connection.introspection.get_constraints(cursor, "bookings")
+        if "booking_id_unique" in constraints:
+            cursor.execute(
+                f"ALTER TABLE {quote('bookings')} "
+                f"DROP INDEX {quote('booking_id_unique')}"
+            )
+
+        constraints = connection.introspection.get_constraints(cursor, "bookings")
+        has_pnr_index = any(
+            constraint.get("columns") == ["pnr"]
+            for constraint in constraints.values()
+        )
+        if not has_pnr_index:
+            cursor.execute(
+                f"ALTER TABLE {quote('bookings')} "
+                f"ADD KEY {quote('bookings_pnr_idx')} ({quote('pnr')})"
+            )
+
+        for table in ("coupons", "ledger"):
+            constraints = connection.introspection.get_constraints(cursor, table)
+            has_booking_fk = any(
+                constraint.get("columns") == ["booking_id"]
+                and constraint.get("foreign_key") == ("bookings", "id")
+                for constraint in constraints.values()
+            )
+            if not has_booking_fk:
+                cursor.execute(
+                    f"ALTER TABLE {quote(table)} "
+                    f"ADD CONSTRAINT {quote(f'{table}_booking_fk')} "
+                    f"FOREIGN KEY ({quote('booking_id')}) "
+                    f"REFERENCES {quote('bookings')} ({quote('id')}) "
+                    "ON DELETE SET NULL"
+                )
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,47 +133,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql=[
-                "ALTER TABLE coupons DROP FOREIGN KEY coupons_booking_fk",
-                "ALTER TABLE ledger DROP FOREIGN KEY ledger_booking_fk",
-                (
-                    "ALTER TABLE bookings "
-                    "ADD COLUMN id BIGINT NOT NULL AUTO_INCREMENT, "
-                    "ADD UNIQUE KEY booking_id_unique (id)"
-                ),
-                (
-                    "UPDATE coupons c JOIN bookings b ON b.pnr = c.booking_id "
-                    "SET c.booking_id = b.id"
-                ),
-                (
-                    "UPDATE ledger l JOIN bookings b ON b.pnr = l.booking_id "
-                    "SET l.booking_id = b.id"
-                ),
-                (
-                    "UPDATE redemptions r JOIN bookings b ON b.pnr = r.booking_id "
-                    "SET r.booking_id = CAST(b.id AS CHAR)"
-                ),
-                "ALTER TABLE coupons MODIFY booking_id BIGINT NULL",
-                "ALTER TABLE ledger MODIFY booking_id BIGINT NULL",
-                (
-                    "ALTER TABLE bookings DROP PRIMARY KEY, "
-                    "DROP INDEX booking_id_unique, "
-                    "ADD PRIMARY KEY (id), "
-                    "ADD KEY bookings_pnr_idx (pnr)"
-                ),
-                (
-                    "ALTER TABLE coupons ADD CONSTRAINT coupons_booking_fk "
-                    "FOREIGN KEY (booking_id) REFERENCES bookings (id) "
-                    "ON DELETE SET NULL"
-                ),
-                (
-                    "ALTER TABLE ledger ADD CONSTRAINT ledger_booking_fk "
-                    "FOREIGN KEY (booking_id) REFERENCES bookings (id) "
-                    "ON DELETE SET NULL"
-                ),
-            ],
-            reverse_sql=None,
+        migrations.RunPython(
+            migrate_booking_primary_key,
+            migrations.RunPython.noop,
         ),
         migrations.SeparateDatabaseAndState(
             database_operations=[],

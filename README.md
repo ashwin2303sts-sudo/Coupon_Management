@@ -7,8 +7,8 @@ A Django + MySQL/MariaDB (XAMPP) coupon management website with working sidebar 
 - Username: `admin`
 - Password: `admin123`
 
-The root-level `SCHEMA.sql` creates this first-run account. Its legacy
-plaintext password is upgraded to a hash after the first successful login.
+A fresh database gets this account when `python manage.py migrate` runs. The
+password is stored as a hash.
 
 ## XAMPP setup on Windows
 
@@ -24,22 +24,21 @@ Default configuration:
 
 If your XAMPP MySQL root account has a password, put that password in `.env`.
 
-### 2. Import the database schema
+### 2. Create the database
 
-You can use phpMyAdmin:
+Create a database named `coupon_management` in phpMyAdmin, or import
+`database/coupon_management.sql` to create it:
 
 1. Open `http://localhost/phpmyadmin/`
-2. Import the root-level `SCHEMA.sql`
+2. Import `database/coupon_management.sql`
 
-The file creates the database and all current application tables, indexes,
-relationships, Django migration records, and the initial admin account. It is
-safe to run `python manage.py migrate` afterward; the schema already records
-the current migrations.
+The SQL file creates the database only. Django migrations create the
+application tables and initial admin account.
 
 Each passenger booking has its own database ID and unique Ticket No, so
 multiple passengers can share the same S PNR. On an existing installation,
-run `python manage.py migrate` to apply the duplicate-PNR schema update; do not
-re-import `SCHEMA.sql` into a database that already contains your data.
+run `python manage.py migrate` to apply schema updates; do not replace a
+database that already contains your data.
 
 ### 3. Open the project in VS Code
 
@@ -88,8 +87,8 @@ If your MySQL root user has a password, enter it after `MYSQL_PASSWORD=`.
 python manage.py migrate
 ```
 
-Because `SCHEMA.sql` includes the schema and migration records, this should
-report that no migrations are pending.
+This creates or updates the application tables and records the applied
+migrations.
 
 ### 8. Optional: import old JSON backup data
 

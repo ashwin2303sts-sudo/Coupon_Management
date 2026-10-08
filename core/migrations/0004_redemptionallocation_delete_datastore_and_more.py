@@ -4,6 +4,13 @@ import django.db.models.deletion
 from django.db import migrations, models
 
 
+def create_redemption_allocations_if_missing(apps, schema_editor):
+    RedemptionAllocation = apps.get_model("core", "RedemptionAllocation")
+    table_name = RedemptionAllocation._meta.db_table
+    if table_name not in schema_editor.connection.introspection.table_names():
+        schema_editor.create_model(RedemptionAllocation)
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -17,11 +24,8 @@ class Migration(migrations.Migration):
 
         # =========================================================
         # REDEMPTION ALLOCATION
-        # Table already exists in database with:
-        # id, coupon_code, amount
-        #
-        # So create table only in Django migration STATE.
-        # Database table will NOT be created again.
+        # Keep the legacy table shape in migration state, and create the
+        # physical table only when a fresh database does not have it.
         # =========================================================
         migrations.SeparateDatabaseAndState(
             database_operations=[],
@@ -54,6 +58,11 @@ class Migration(migrations.Migration):
                     },
                 ),
             ],
+        ),
+
+        migrations.RunPython(
+            create_redemption_allocations_if_missing,
+            migrations.RunPython.noop,
         ),
 
         # =========================================================
