@@ -133,21 +133,29 @@ def _coupon_points(coupon, bookings=None):
         return money(coupon.get("points"))
     if bookings is None:
         bookings = read("bookings")
-    booking = next((b for b in bookings if b.get("s_pnr") == coupon.get("booking_ref")), None)
+    booking = next(
+        (b for b in bookings if str(b.get("booking_id")) == str(coupon.get("booking_id"))),
+        None,
+    )
     return money(booking.get("net_amount")) / 100 if booking else 0.0
 
 
 def _coupon_status_for_travel(coupon, bookings=None):
-    if coupon.get("status") == "REDEEMED":
-        return "REDEEMED"
     if bookings is None:
         bookings = read("bookings")
-    booking = next((b for b in bookings if b.get("s_pnr") == coupon.get("booking_ref")), None)
+    booking = next(
+        (b for b in bookings if str(b.get("booking_id")) == str(coupon.get("booking_id"))),
+        None,
+    )
+    if str((booking or {}).get("status", "")).strip().casefold() == "cancelled":
+        return "EXPIRED"
+    if coupon.get("status") in {"REDEEMED", "EXPIRED"}:
+        return coupon["status"]
     travel_date = (booking or {}).get("travel_date") or coupon.get("travel_start_date") or coupon.get("unlock_date")
     if not travel_date:
         return "PENDING"
     try:
-        return "AVAILABLE" if timezone.localdate() >= date.fromisoformat(str(travel_date)[:10]) else "PENDING"
+        return "AVAILABLE" if timezone.localdate() > date.fromisoformat(str(travel_date)[:10]) else "PENDING"
     except ValueError:
         return "PENDING"
 
@@ -159,10 +167,15 @@ def auto_release_coupons():
     for c in coupons:
         status = _coupon_status_for_travel(c, bookings)
         points = _coupon_points(c, bookings)
-        booking = next((b for b in bookings if b.get("s_pnr") == c.get("booking_ref")), None)
+        booking = next(
+            (b for b in bookings if str(b.get("booking_id")) == str(c.get("booking_id"))),
+            None,
+        )
         if c.get("points") != points:
             c["points"] = points; changed = True
-        if c.get("status") != status and c.get("status") != "REDEEMED":
+        if c.get("status") != status and (
+            c.get("status") != "REDEEMED" or status == "EXPIRED"
+        ):
             c["status"] = status; changed = True
         released = status == "AVAILABLE" or c.get("status") == "REDEEMED"
         if bool(c.get("is_released")) != released:
@@ -300,14 +313,14 @@ def client_portal(request):
 
     # Passenger keys from filtered bookings
     filtered_passenger_keys = {
-        str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+        str(b.get("ticket_no") or b.get("passenger_name") or b.get("booking_id") or "").strip().casefold()
         for b in filtered_bookings
     }
     filtered_passenger_keys.discard("")
 
     # All passenger keys (unfiltered) for the overall count
     passenger_keys = {
-        str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+        str(b.get("ticket_no") or b.get("passenger_name") or b.get("booking_id") or "").strip().casefold()
         for b in bookings
     }
     passenger_keys.discard("")
@@ -317,8 +330,10 @@ def client_portal(request):
 
     # For date-filtered coupon stats: only include coupons whose booking travel_date is in range
     if date_filter_active:
-        filtered_booking_spnrs = {b.get("s_pnr") for b in filtered_bookings}
-        filtered_coupons = [c for c in coupons if c.get("booking_ref") in filtered_booking_spnrs]
+        filtered_booking_ids = {str(b.get("booking_id")) for b in filtered_bookings}
+        filtered_coupons = [
+            c for c in coupons if str(c.get("booking_id")) in filtered_booking_ids
+        ]
     else:
         filtered_coupons = coupons
 
@@ -331,7 +346,7 @@ def client_portal(request):
     for client in customers:
         client_bookings = [b for b in all_bookings if b.get("client_id") == client.get("id")]
         client_passenger_keys = {
-            str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+            str(b.get("ticket_no") or b.get("passenger_name") or b.get("booking_id") or "").strip().casefold()
             for b in client_bookings
         }
         client_passenger_keys.discard("")
@@ -339,7 +354,7 @@ def client_portal(request):
         if date_filter_active:
             filtered_client_bookings = [b for b in client_bookings if _booking_in_range(b)]
             filtered_client_pax_keys = {
-                str(b.get("passenger_name") or b.get("s_pnr") or "").strip().casefold()
+                str(b.get("ticket_no") or b.get("passenger_name") or b.get("booking_id") or "").strip().casefold()
                 for b in filtered_client_bookings
             }
             filtered_client_pax_keys.discard("")
@@ -360,7 +375,7 @@ def client_portal(request):
     passenger_matches = _filter_passengers_by_name(bookings, passenger_query)
     selected_booking_ref = request.GET.get("selected_passenger", "").strip()
     selected_booking = next(
-        (b for b in bookings if b.get("s_pnr") == selected_booking_ref), None
+        (b for b in bookings if str(b.get("booking_id")) == selected_booking_ref), None
     )
     passenger_history = []
     passenger_points = 0
@@ -379,7 +394,7 @@ def client_portal(request):
         passenger_coupons = [
             c for c in all_coupons
             if str(c.get("passenger_name") or "").strip().casefold() == passenger_name.casefold()
-            or c.get("booking_ref") in {h.get("s_pnr") for h in passenger_history}
+            or str(c.get("booking_id")) in {str(h.get("booking_id")) for h in passenger_history}
         ]
         passenger_available = sum(_coupon_points(c, all_bookings) for c in passenger_coupons if c.get("status") == "AVAILABLE")
         passenger_pending = sum(_coupon_points(c, all_bookings) for c in passenger_coupons if c.get("status") == "PENDING")
@@ -532,8 +547,9 @@ def bookings(request):
         booking.setdefault("travel_type", "")
         booking.setdefault("airline", "")
         booking.setdefault("fare_type", "ANY CLASS")
+        booking["status"] = "Cancelled" if str(booking.get("status", "")).strip().lower() == "cancelled" else "Confirmed"
     if q:
-        searchable_fields = ("s_pnr", "passenger_name", "airline", "sector")
+        searchable_fields = ("s_pnr", "ticket_no", "passenger_name", "airline", "sector", "status")
         data = [
             b for b in data
             if q in " ".join(str(b.get(field, "")) for field in searchable_fields).casefold()
@@ -542,8 +558,48 @@ def bookings(request):
         request, bookings=data, search=q, customers=read("customers"),
         airlines=AIRLINES, airline_types=AIRLINE_TYPES,
         booking_methods=BOOKING_METHODS, travel_types=TRAVEL_TYPES,
+        booking_statuses=Booking.STATUS_CHOICES,
         rules=read("rules"), rules_json=json.dumps(read("rules")),
     ))
+
+
+def _cancel_booking_and_revoke_coupon(booking):
+    booking.status = "Cancelled"
+    booking.save()
+
+    coupon = Coupon.objects.select_for_update().filter(booking=booking).first()
+    if coupon is None or (
+        coupon.status == "EXPIRED"
+        and decimal_value(coupon.amount) == 0
+        and decimal_value(coupon.redeemed_amount) == 0
+    ):
+        return False
+
+    earned_points = decimal_value(coupon.amount) + decimal_value(coupon.redeemed_amount)
+    if earned_points > 0:
+        txn_id = new_id("TXN-REV")
+        Ledger.objects.create(
+            id=txn_id,
+            txn_id=txn_id,
+            customer=coupon.customer,
+            customer_name=coupon.customer_name,
+            booking=booking,
+            booking_ref=booking.pnr,
+            coupon_code=coupon.coupon_code or coupon.id,
+            type="Coupon Reversed",
+            amount=-earned_points,
+            status="REVERSED",
+            date=timezone.localdate(),
+        )
+
+    coupon.amount = 0
+    coupon.redeemed_amount = 0
+    coupon.status = "EXPIRED"
+    coupon.is_released = False
+    coupon.save(update_fields=[
+        "amount", "redeemed_amount", "status", "is_released", "updated_at",
+    ])
+    return True
 
 
 @admin_required
@@ -551,9 +607,11 @@ def bookings(request):
 def add_booking(request):
     client_id = request.POST.get("client_id", "").strip()
     client_record = Customer.objects.filter(id=client_id).first()
+    ticket_no = request.POST.get("ticket_no", "").strip()
 
     required_fields = {
         "S PNR": request.POST.get("s_pnr", "").strip(),
+        "Ticket No": ticket_no,
         "Client ID": client_id,
         "Passenger Name": request.POST.get("passenger_name", "").strip(),
         "Sector": request.POST.get("sector", "").strip(),
@@ -571,8 +629,12 @@ def add_booking(request):
     if missing or client_record is None:
         messages.error(request, "Please fill all required booking fields: " + ", ".join(missing or ["valid Client ID"]) + ".")
         return redirect("bookings")
-    if Booking.objects.filter(pnr=required_fields["S PNR"]).exists():
-        messages.error(request, "This S PNR already exists.")
+    status_val = request.POST.get("status", "Confirmed").strip()
+    if status_val not in dict(Booking.STATUS_CHOICES):
+        messages.error(request, "Booking Status must be Confirmed or Cancelled.")
+        return redirect("bookings")
+    if Booking.objects.filter(ticket_no=ticket_no).exists():
+        messages.error(request, "This Ticket No already exists.")
         return redirect("bookings")
 
     final_net, discount_pct, matched_rule = calculate_discounted_net(
@@ -580,6 +642,7 @@ def add_booking(request):
     )
     Booking.objects.create(
         pnr=required_fields["S PNR"],
+        ticket_no=ticket_no,
         client=client_record,
         passenger_name=required_fields["Passenger Name"],
         sector=required_fields["Sector"],
@@ -594,6 +657,9 @@ def add_booking(request):
         travel_date=date_value(required_fields["Travel Start Date"]),
         end_date=date_value(required_fields["Travel End Date"]),
         booked_date=date_value(required_fields["Booking Date"]),
+        status=status_val,
+        is_auto=False,
+        is_manual=True,
     )
     messages.success(request, f"Booking added successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
@@ -602,14 +668,16 @@ def add_booking(request):
 @admin_required
 @require_POST
 def edit_booking(request):
-    spnr = request.POST.get("s_pnr", "").strip()
-    booking = Booking.objects.filter(pnr=spnr).first()
+    booking_id = request.POST.get("booking_id", "").strip()
+    booking = Booking.objects.filter(pk=booking_id).first()
     if booking is None:
         messages.error(request, "Booking not found.")
         return redirect("bookings")
     client_id = request.POST.get("client_id", "").strip()
     client_record = Customer.objects.filter(id=client_id).first()
+    ticket_no = request.POST.get("ticket_no", "").strip()
     values = {
+        "ticket_no": ticket_no,
         "passenger_name": request.POST.get("passenger_name", "").strip(),
         "sector": request.POST.get("sector", "").strip(),
         "booking_type": request.POST.get("booking_type", "").strip(),
@@ -626,8 +694,12 @@ def edit_booking(request):
     if missing or client_record is None:
         messages.error(request, "All booking fields are compulsory. Please fill every field.")
         return redirect("bookings")
+    if Booking.objects.filter(ticket_no=ticket_no).exclude(pk=booking.pk).exists():
+        messages.error(request, "This Ticket No already exists.")
+        return redirect("bookings")
     final_net, discount_pct, matched_rule = calculate_discounted_net(values["net_amount"], values["airline"], values["fare_type"])
     booking.client = client_record
+    booking.ticket_no = ticket_no
     booking.passenger_name = values["passenger_name"]
     booking.sector = values["sector"]
     booking.booking_type = values["booking_type"]
@@ -641,23 +713,34 @@ def edit_booking(request):
     booking.travel_date = date_value(values["travel_date"])
     booking.end_date = date_value(values["end_date"])
     booking.booked_date = date_value(values["booked_date"])
-    booking.save()
-    messages.success(request, f"Booking {spnr} updated successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
+    status_val = request.POST.get("status", "").strip()
+    if status_val not in dict(Booking.STATUS_CHOICES):
+        messages.error(request, "Booking Status must be Confirmed or Cancelled.")
+        return redirect("bookings")
+    if status_val == "Cancelled" and booking.status != "Cancelled":
+        with transaction.atomic():
+            _cancel_booking_and_revoke_coupon(booking)
+    else:
+        booking.status = status_val
+        booking.save()
+    messages.success(request, f"Booking {booking.pnr} updated successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
 
 
 @admin_required
 @require_POST
 def delete_booking(request):
-    spnr = request.POST.get("s_pnr", "").strip()
-    if not spnr:
-        messages.error(request, "S PNR is required to delete a booking.")
+    booking_id = request.POST.get("booking_id", "").strip()
+    if not booking_id:
+        messages.error(request, "Booking ID is required to cancel a booking.")
         return redirect("bookings")
-    deleted_count, _ = Booking.objects.filter(pnr=spnr).delete()
-    if not deleted_count:
+    booking = Booking.objects.filter(pk=booking_id).first()
+    if not booking:
         messages.error(request, "Booking not found.")
         return redirect("bookings")
-    messages.success(request, "Booking deleted.")
+    with transaction.atomic():
+        _cancel_booking_and_revoke_coupon(booking)
+    messages.success(request, f"Booking {booking.pnr} / {booking.ticket_no} cancelled.")
     return redirect("bookings")
 
 @admin_required
@@ -670,9 +753,10 @@ def coupons(request):
     passenger_records = []
     for b in bookings_data:
         passenger_records.append({
+            "booking_id": b.get("booking_id", ""),
             "passenger_name": b.get("passenger_name", ""),
             "client_id": b.get("client_id", ""), "client_name": b.get("client", ""),
-            "s_pnr": b.get("s_pnr", ""), "net_amount": money(b.get("net_amount")),
+            "s_pnr": b.get("s_pnr", ""), "ticket_no": b.get("ticket_no", ""), "net_amount": money(b.get("net_amount")),
             "sector": b.get("sector", ""), "airline": b.get("airline", ""),
             "fare_type": b.get("fare_type", ""), "airline_pnr": b.get("airline_pnr", ""),
             "travel_date": b.get("travel_date", ""), "end_date": b.get("end_date", ""),
@@ -680,6 +764,7 @@ def coupons(request):
         })
     coupon_records_for_ui = [
         {
+            "booking_id": coupon.get("booking_id", ""),
             "passenger_name": coupon.get("passenger_name", ""),
             "points": coupon.get("points", 0),
             "status": coupon.get("status", ""),
@@ -696,35 +781,39 @@ def coupons(request):
 @admin_required
 @require_POST
 def earn_coupon(request):
-    passenger_name = request.POST.get("passenger_name", "").strip()
-    if not passenger_name:
-        messages.error(request, "Passenger Name is required.")
+    booking_id = request.POST.get("booking_id", "").strip()
+    if not booking_id:
+        messages.error(request, "Select a passenger booking.")
         return redirect("coupons")
-    booking = Booking.objects.select_related("client").filter(passenger_name__iexact=passenger_name).order_by("-created_at").first()
+    booking = Booking.objects.select_related("client").filter(pk=booking_id).first()
     if not booking:
-        messages.error(request, "Passenger Name not found in Bookings.")
+        messages.error(request, "Passenger booking not found.")
         return redirect("coupons")
-    customer = booking.client
-    booking_ref = booking.pnr
-    if Coupon.objects.filter(booking_ref=booking_ref).exists():
-        existing = Coupon.objects.filter(booking_ref=booking_ref).first()
-        messages.info(request, f"A coupon already exists for {booking_ref} ({existing.status}).")
+    if booking.status == "Cancelled":
+        messages.error(request, "A coupon cannot be earned for a cancelled booking.")
         return redirect("coupons")
-    amount = decimal_value(booking.net_amount)
-    points = (amount / decimal_value(100)).quantize(decimal_value("0.01"))
+    if Coupon.objects.filter(booking=booking).exists():
+        existing = Coupon.objects.filter(booking=booking).first()
+        messages.info(request, f"A coupon already exists for {booking.pnr} ({existing.status}).")
+        return redirect("coupons")
+    points = (decimal_value(booking.net_amount) / decimal_value(100)).quantize(
+        decimal_value("0.01")
+    )
     if points <= 0:
         messages.error(request, "Booking Net Amount must be greater than ₹0.")
         return redirect("coupons")
-    available_now = bool(booking.travel_date and timezone.localdate() >= booking.travel_date)
+    available_now = bool(booking.travel_date and timezone.localdate() > booking.travel_date)
     status = "AVAILABLE" if available_now else "PENDING"
     coupon_id = new_id("CPN")
     coupon_code = f"CPN-{coupon_id.split('-', 1)[-1]}"
+    redemption_date = timezone.localdate()
     with transaction.atomic():
-        Coupon.objects.create(id=coupon_id, coupon_code=coupon_code, customer=customer, booking=booking, booking_ref=booking_ref,
-            customer_name=customer.name, passenger_name=booking.passenger_name, travel_date=booking.travel_date, amount=points,
-            status=status, is_released=available_now, unlock_date=booking.travel_date, available_date=timezone.localdate() if available_now else None, redeemed_amount=0)
-        Ledger.objects.create(id=new_id("TXN-EARN"), txn_id=new_id("TXN-EARN"), customer=customer, customer_name=customer.name, booking=booking,
-            booking_ref=booking_ref, coupon_code=coupon_code, type="Coupon Earned", amount=points, status=status, date=timezone.localdate())
+        Coupon.objects.create(id=coupon_id, coupon_code=coupon_code, customer=booking.client, booking=booking, booking_ref=booking.pnr,
+            customer_name=booking.client.name, passenger_name=booking.passenger_name, travel_date=booking.travel_date, amount=points,
+            status=status, is_released=available_now, unlock_date=booking.travel_date, available_date=redemption_date if available_now else None, redeemed_amount=0)
+        txn_id = new_id("TXN-EARN")
+        Ledger.objects.create(id=txn_id, txn_id=txn_id, customer=booking.client, customer_name=booking.client.name, booking=booking,
+            booking_ref=booking.pnr, coupon_code=coupon_code, type="Coupon Earned", amount=points, status=status, date=redemption_date)
     messages.success(request, f"Earn Coupon created: {money(points):,.2f} points. Coupon Amount when available: ₹{money(points/10):,.2f}.")
     return redirect("coupons")
 
@@ -732,44 +821,46 @@ def earn_coupon(request):
 @admin_required
 @require_POST
 def release_coupon(request):
-    booking_ref = request.POST.get("booking_ref", "").strip()
-    booking = Booking.objects.filter(pnr=booking_ref).first()
+    booking_id = request.POST.get("booking_id", "").strip()
+    booking = Booking.objects.filter(pk=booking_id).first()
     if not booking:
-        messages.error(request, "S PNR not found.")
+        messages.error(request, "Passenger booking not found.")
         return redirect("coupons")
-    coupon = Coupon.objects.filter(booking_ref=booking_ref).first()
+    if booking.status == "Cancelled":
+        messages.error(request, "A cancelled booking's coupon cannot be released.")
+        return redirect("coupons")
+    coupon = Coupon.objects.filter(booking=booking).first()
     if not coupon:
         messages.warning(request, "No coupon found. Earn the coupon first.")
         return redirect("coupons")
-    if not booking.travel_date or timezone.localdate() < booking.travel_date:
-        messages.warning(request, "Coupon remains PENDING until the Travel Start Date.")
+    if not booking.travel_date or timezone.localdate() <= booking.travel_date:
+        messages.warning(request, "Coupon remains PENDING through the Travel Start Date and becomes AVAILABLE the next day.")
         return redirect("coupons")
     if coupon.status == "REDEEMED":
         messages.warning(request, "This coupon has already been fully redeemed.")
         return redirect("coupons")
     coupon.status = "AVAILABLE"; coupon.is_released = True; coupon.available_date = timezone.localdate()
     coupon.save(update_fields=["status", "is_released", "available_date", "updated_at"])
-    messages.success(request, f"Coupon for {booking_ref} is now AVAILABLE. Coupon Amount: ₹{money(coupon.amount/10):,.2f}.")
+    messages.success(request, f"Coupon for {booking.pnr} ({booking.ticket_no}) is now AVAILABLE. Coupon Amount: ₹{money(coupon.amount/10):,.2f}.")
     return redirect("coupons")
-
-
-def _booking_for_passenger_name(passenger_name):
-    return Booking.objects.select_related("client").filter(passenger_name__iexact=passenger_name).order_by("-created_at").first()
 
 
 @admin_required
 @require_POST
 def redeem_coupon(request):
-    passenger_name = request.POST.get("passenger_name", "").strip()
-    if not passenger_name:
-        messages.error(request, "Passenger Name is required.")
+    booking_id = request.POST.get("booking_id", "").strip()
+    if not booking_id:
+        messages.error(request, "Select a passenger booking.")
         return redirect("coupons")
-    booking = _booking_for_passenger_name(passenger_name)
+    booking = Booking.objects.select_related("client").filter(pk=booking_id).first()
     if not booking:
-        messages.error(request, "Passenger Name not found.")
+        messages.error(request, "Passenger booking not found.")
+        return redirect("coupons")
+    if booking.status == "Cancelled":
+        messages.error(request, "A coupon cannot be redeemed for a cancelled booking.")
         return redirect("coupons")
     customer = booking.client
-    available = list(Coupon.objects.select_related("booking", "customer").filter(customer=customer, status="AVAILABLE", booking__passenger_name__iexact=passenger_name).order_by("-created_at"))
+    available = list(Coupon.objects.select_related("booking", "customer").filter(customer=customer, status="AVAILABLE", booking=booking).order_by("-created_at"))
     available = [c for c in available if decimal_value(c.amount) > 0][:1]
     if not available:
         messages.error(request, "Coupon is not AVAILABLE yet. It becomes available only on/after Travel Start Date.")
@@ -792,7 +883,7 @@ def redeem_coupon(request):
         booking.save(update_fields=["net_amount", "updated_at"])
         redemption_id = new_id("RDM")
         codes = ", ".join(c.coupon_code or c.id for c in available)
-        redemption = Redemption.objects.create(id=redemption_id, customer=customer, customer_name=customer.name, booking_id=booking.pnr, booking_ref=booking.pnr,
+        redemption = Redemption.objects.create(id=redemption_id, customer=customer, customer_name=customer.name, booking_id=str(booking.pk), booking_ref=booking.pnr,
             coupon_code=codes, amount=coupon_amount, redeemed_amount=coupon_amount, status="COMPLETED", redemption_type="Coupon Redemption", time=now().split(" ")[1][:5])
         for coupon in available:
             RedemptionAllocation.objects.create(redemption=redemption, coupon_code=coupon.coupon_code or coupon.id, amount=(decimal_value(coupon.redeemed_amount)))
@@ -805,28 +896,31 @@ def redeem_coupon(request):
 @admin_required
 @require_POST
 def reverse_coupon(request):
-    passenger_name = request.POST.get("passenger_name", "").strip()
-    if not passenger_name:
-        messages.error(request, "Passenger Name is required.")
+    booking_id = request.POST.get("booking_id", "").strip()
+    if not booking_id:
+        messages.error(request, "Select a passenger booking.")
         return redirect("coupons")
-    booking = _booking_for_passenger_name(passenger_name)
+    booking = Booking.objects.select_related("client").filter(pk=booking_id).first()
     if not booking:
-        messages.error(request, "Passenger Name not found.")
+        messages.error(request, "Passenger booking not found.")
         return redirect("coupons")
-    redemption = Redemption.objects.filter(booking_ref=booking.pnr, status__in=["COMPLETED", "SUCCESS"]).order_by("-date").first()
+    if booking.status == "Cancelled":
+        messages.error(request, "A cancelled booking's coupon cannot be restored.")
+        return redirect("coupons")
+    redemption = Redemption.objects.filter(booking_id=str(booking.pk), status__in=["COMPLETED", "SUCCESS"]).order_by("-date").first()
     if not redemption:
         messages.error(request, "No completed redemption was found for this passenger.")
         return redirect("coupons")
     restored_amount = decimal_value(redemption.redeemed_amount or redemption.amount)
     restored_points = (restored_amount * decimal_value(10)).quantize(decimal_value("0.01"))
     with transaction.atomic():
-        coupon = Coupon.objects.filter(booking_ref=booking.pnr).first()
+        coupon = Coupon.objects.filter(booking=booking).first()
         if not coupon:
             messages.error(request, "Coupon record not found.")
             return redirect("coupons")
         coupon.amount = decimal_value(coupon.amount) + restored_points
         coupon.redeemed_amount = max(decimal_value(0), decimal_value(coupon.redeemed_amount) - restored_points)
-        coupon.status = "AVAILABLE" if booking.travel_date and timezone.localdate() >= booking.travel_date else "PENDING"
+        coupon.status = "AVAILABLE" if booking.travel_date and timezone.localdate() > booking.travel_date else "PENDING"
         coupon.is_released = coupon.status == "AVAILABLE"
         coupon.save(update_fields=["amount", "redeemed_amount", "status", "is_released", "updated_at"])
         booking.net_amount = decimal_value(booking.net_amount) + restored_amount
@@ -1019,6 +1113,8 @@ def ledger(request):
             "customer_id": entry.get("customer_id", "-"),
             "customer_name": entry.get("customer_name", entry.get("customer_id", "-")),
             "booking_ref": entry.get("booking_ref", "-"),
+            "booking_status": entry.get("booking_status", "-"),
+            "ticket_no": entry.get("ticket_no", "-"),
             "type": entry.get("type", "Transaction"),
             "coupon_code": entry.get("coupon_code", "-"),
             "amount": amount,
@@ -1039,7 +1135,7 @@ def ledger(request):
         filtered = [
             row for row in filtered
             if query in " ".join(str(row.get(key, "")) for key in (
-                "txn_id", "customer_id", "customer_name", "booking_ref", "type", "coupon_code"
+                "txn_id", "customer_id", "customer_name", "booking_ref", "booking_status", "ticket_no", "type", "coupon_code"
             )).casefold()
         ]
     if transaction_type:
@@ -1086,6 +1182,9 @@ def _canonical_excel_headers(headers):
         "spnr": "S PNR",
         "pnr": "S PNR",
         "bookingpnr": "S PNR",
+        "ticketno": "Ticket No",
+        "ticketnumber": "Ticket No",
+        "ticket": "Ticket No",
         "clientid": "Client ID",
         "customerid": "Client ID",
         "passengername": "Passenger Name",
@@ -1106,11 +1205,25 @@ def _canonical_excel_headers(headers):
         "enddate": "Travel End Date",
         "bookingdate": "Booking Date",
         "bookeddate": "Booking Date",
+        "bookingstatus": "Status",
+        "status": "Status",
     }
     return [
         aliases.get(_normalise_excel_header(header), str(header or "").strip())
         for header in headers
     ]
+
+
+def _canonical_booking_status(value):
+    if value is None:
+        return None
+    status = str(value).strip().casefold()
+    if not status:
+        return None
+    return {
+        "confirmed": "Confirmed",
+        "cancelled": "Cancelled",
+    }.get(status)
 
 
 def _add_excel_upload_failure(request, details=None):
@@ -1138,6 +1251,7 @@ def excel_upload(request):
             required_headers = [
                 "S PNR",
                 "Client ID",
+                "Ticket No",
                 "Passenger Name",
                 "Sector",
                 "Booking Type",
@@ -1149,6 +1263,7 @@ def excel_upload(request):
                 "Travel Start Date",
                 "Travel End Date",
                 "Booking Date",
+                "Status",
             ]
             missing = set(required_headers) - set(headers)
             if missing:
@@ -1158,12 +1273,14 @@ def excel_upload(request):
                 )
                 return redirect("excel_upload")
 
-            existing_pnrs = set(Booking.objects.values_list("pnr", flat=True))
-            imported_pnrs = set()
+            existing_ticket_nos = {
+                str(ticket_no).casefold()
+                for ticket_no in Booking.objects.exclude(ticket_no__isnull=True).values_list("ticket_no", flat=True)
+            }
+            imported_ticket_nos = set()
             rows_to_import = []
             row_errors = []
             invalid_row_numbers = set()
-            existing_pnr_set = set(existing_pnrs)
 
             for row_number, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 row = dict(zip(headers, values))
@@ -1171,10 +1288,6 @@ def excel_upload(request):
                     continue
 
                 spnr = str(row.get("S PNR") or "").strip()
-                if spnr and spnr in imported_pnrs:
-                    row_errors.append(f"Row {row_number}: S PNR {spnr} is duplicated in this workbook.")
-                    invalid_row_numbers.add(row_number)
-                    continue
 
                 missing_values = [
                     header for header in required_headers
@@ -1217,10 +1330,26 @@ def excel_upload(request):
                     invalid_row_numbers.add(row_number)
                     continue
 
-                imported_pnrs.add(spnr)
+                booking_status = _canonical_booking_status(row.get("Status"))
+                if booking_status is None:
+                    row_errors.append(
+                        f"Row {row_number}: Status must be Confirmed or Cancelled."
+                    )
+                    invalid_row_numbers.add(row_number)
+                    continue
+
+                ticket_no = str(row["Ticket No"]).strip()
+                ticket_no_key = ticket_no.casefold()
+                if ticket_no_key in imported_ticket_nos:
+                    row_errors.append(f"Row {row_number}: Ticket No {ticket_no} is duplicated in this workbook.")
+                    invalid_row_numbers.add(row_number)
+                    continue
+
+                imported_ticket_nos.add(ticket_no_key)
                 rows_to_import.append({
                     "s_pnr": spnr,
-                    "is_update": spnr in existing_pnr_set,
+                    "ticket_no": ticket_no,
+                    "is_update": ticket_no_key in existing_ticket_nos,
                     "client_id": str(row["Client ID"]).strip(),
                     "client": str(row.get("Client") or row["Client ID"]).strip(),
                     "passenger_name": str(row["Passenger Name"]).strip(),
@@ -1231,6 +1360,7 @@ def excel_upload(request):
                     "fare_type": str(row["Airline Type"]).strip(),
                     "airline_pnr": str(row["Airline PNR"]).strip(),
                     "base_amount": base_amount,
+                    "status": booking_status or "Confirmed",
                     **parsed_dates,
                 })
 
@@ -1248,9 +1378,9 @@ def excel_upload(request):
             with transaction.atomic():
                 customers_by_id = Customer.objects.in_bulk({row["client_id"] for row in rows_to_import})
                 existing_bookings = {
-                    booking.pnr: booking
+                    booking.ticket_no: booking
                     for booking in Booking.objects.select_for_update().filter(
-                        pnr__in=[row["s_pnr"] for row in rows_to_import if row["is_update"]]
+                        ticket_no__in=[row["ticket_no"] for row in rows_to_import if row["is_update"]]
                     )
                 }
                 new_bookings = []
@@ -1267,10 +1397,11 @@ def excel_upload(request):
                     final_amount, discount_percentage, _ = calculate_discounted_net(
                         row["base_amount"], row["airline"], row["fare_type"]
                     )
-                    booking = existing_bookings.get(row["s_pnr"])
+                    booking = existing_bookings.get(row["ticket_no"])
                     if booking is None:
                         new_bookings.append(Booking(
                             pnr=row["s_pnr"],
+                            ticket_no=row["ticket_no"],
                             client=customer,
                             passenger_name=row["passenger_name"],
                             sector=row["sector"],
@@ -1285,10 +1416,14 @@ def excel_upload(request):
                             airline_pnr=row["airline_pnr"],
                             booking_type=row["booking_type"],
                             travel_type=row["travel_type"],
+                            status=row["status"] or "Confirmed",
+                            is_auto=True,
+                            is_manual=False,
                         ))
                         continue
 
                     booking.client = customer
+                    booking.ticket_no = row["ticket_no"]
                     booking.passenger_name = row["passenger_name"]
                     booking.sector = row["sector"]
                     booking.travel_date = row["travel_date"]
@@ -1302,27 +1437,107 @@ def excel_upload(request):
                     booking.airline_pnr = row["airline_pnr"]
                     booking.booking_type = row["booking_type"]
                     booking.travel_type = row["travel_type"]
-                    booking.save(update_fields=[
-                        "client", "passenger_name", "sector",
-                        "travel_date", "end_date", "booked_date", "net_amount",
-                        "base_amount", "discount_percentage", "airline", "fare_type",
-                        "airline_pnr", "booking_type", "travel_type", "updated_at",
-                    ])
+                    booking.is_auto = True
+                    booking.is_manual = False
+                    booking.status = row["status"] or "Confirmed"
+                    if booking.status == "Cancelled":
+                        _cancel_booking_and_revoke_coupon(booking)
+                    else:
+                        booking.save(update_fields=[
+                            "client", "ticket_no", "passenger_name", "sector",
+                            "travel_date", "end_date", "booked_date", "net_amount",
+                            "base_amount", "discount_percentage", "airline", "fare_type",
+                            "airline_pnr", "booking_type", "travel_type", "status",
+                            "is_auto", "is_manual", "updated_at",
+                        ])
                     updated += 1
 
                 Booking.objects.bulk_create(new_bookings, batch_size=500)
                 added = len(new_bookings)
+                imported_bookings = list(
+                    Booking.objects.select_related("client").filter(
+                        ticket_no__in=[row["ticket_no"] for row in rows_to_import]
+                    )
+                )
+                imported_booking_ids = [booking.pk for booking in imported_bookings]
+                bookings_with_coupons = set(
+                    Coupon.objects.filter(
+                        booking_id__in=imported_booking_ids
+                    ).values_list("booking_id", flat=True)
+                )
+                now_date = timezone.localdate()
+                coupons_to_create = []
+                ledger_entries_to_create = []
+                released_count = 0
+                pending_count = 0
+                for booking in imported_bookings:
+                    if booking.status == "Cancelled":
+                        continue
+                    if booking.pk in bookings_with_coupons:
+                        continue
+
+                    points = (decimal_value(booking.net_amount) / Decimal("100")).quantize(
+                        Decimal("0.01")
+                    )
+                    if points <= 0:
+                        raise ValueError(
+                            f"Ticket No {booking.ticket_no} has no positive net amount, so a coupon cannot be created."
+                        )
+
+                    available_now = bool(booking.travel_date and now_date > booking.travel_date)
+                    status = "AVAILABLE" if available_now else "PENDING"
+                    coupon_id = new_id("CPN")
+                    coupon_code = f"CPN-{coupon_id.split('-', 1)[-1]}"
+                    txn_id = new_id("TXN-EARN")
+                    coupons_to_create.append(Coupon(
+                        id=coupon_id,
+                        coupon_code=coupon_code,
+                        customer=booking.client,
+                        booking=booking,
+                        booking_ref=booking.pnr,
+                        customer_name=booking.client.name,
+                        passenger_name=booking.passenger_name,
+                        travel_date=booking.travel_date,
+                        amount=points,
+                        status=status,
+                        is_released=available_now,
+                        unlock_date=booking.travel_date,
+                        available_date=now_date if available_now else None,
+                        redeemed_amount=0,
+                    ))
+                    ledger_entries_to_create.append(Ledger(
+                        id=txn_id,
+                        txn_id=txn_id,
+                        customer=booking.client,
+                        customer_name=booking.client.name,
+                        booking=booking,
+                        booking_ref=booking.pnr,
+                        coupon_code=coupon_code,
+                        type="Coupon Earned",
+                        amount=points,
+                        status=status,
+                        date=now_date,
+                    ))
+                    if available_now:
+                        released_count += 1
+                    else:
+                        pending_count += 1
+
+                Coupon.objects.bulk_create(coupons_to_create, batch_size=500)
+                Ledger.objects.bulk_create(ledger_entries_to_create, batch_size=500)
 
             messages.success(request, "Booking Added Successfully")
             messages.info(
                 request,
-                f"Excel upload complete: {added} booking(s) added and {updated} booking(s) updated.",
+                f"Excel upload complete: {added} booking(s) added and {updated} booking(s) updated; "
+                f"{len(coupons_to_create)} coupon(s) earned, {released_count} released and "
+                f"{pending_count} pending until travel date.",
             )
         except Exception:
             logger.exception("Excel booking upload failed")
             _add_excel_upload_failure(
                 request,
-                "The workbook could not be imported. Check that it is a valid .xlsx file and that all S PNR values are unique.",
+                "The workbook could not be imported. Check that it is a valid .xlsx file, all Ticket No values are unique, and each passenger has a positive net amount.",
             )
             return redirect("excel_upload")
         finally:
@@ -1345,6 +1560,7 @@ def download_excel_template(request):
     headers = [
         "S PNR",
         "Client ID",
+        "Ticket No",
         "Passenger Name",
         "Sector",
         "Booking Type",
@@ -1356,24 +1572,9 @@ def download_excel_template(request):
         "Travel Start Date",
         "Travel End Date",
         "Booking Date",
+        "Status",
     ]
     ws.append(headers)
-    sample_row = [
-        "SPNR78901",
-        "CL-1001",
-        "MR RAHUL SHARMA",
-        "MAA-DXB",
-        "Web Booking",
-        "Round Trip",
-        "IndiGo",
-        "Economy Class",
-        "6E-XY789",
-        "3801",
-        "2026-09-05",
-        "2026-09-09",
-        "2026-08-29",
-    ]
-    ws.append(sample_row)
 
     for col in ws.columns:
         max_length = 0

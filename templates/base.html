@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Coupon Management System</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}?v=1">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=41">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=57">
 </head>
 <body>
 <div class="app">
@@ -43,7 +43,7 @@
             </div>
         </header>
 
-        <section class="content">
+        <section class="content {% if request.resolver_match.url_name == 'bookings' %}bookings-content{% endif %}">
             {% if messages and request.resolver_match.url_name == 'excel_upload' %}
                     <div class="excel-upload-toast">
                         {% for message in messages %}
@@ -60,7 +60,7 @@
     </main>
 </div>
 
-<div class="global-fixed-scroll" id="globalFixedScroll" aria-label="Horizontal page scrollbar">
+<div class="global-fixed-scroll" id="globalFixedScroll" aria-label="Horizontal table scrollbar">
     <div></div>
 </div>
 
@@ -127,6 +127,6 @@
 </script>
 {% endif %}
 
-<script src="{% static 'js/app.js' %}"></script>
+<script src="{% static 'js/app.js' %}?v=44"></script>
 </body>
 </html>

@@ -27,7 +27,7 @@
 
     <div class="excel-upload-panel right-panel">
         <div class="panel-header">
-            <h2>13-Column Add Booking Format</h2>
+            <h2>15-Column Add Booking Format</h2>
         </div>
 
         <div class="table-wrap">
@@ -42,6 +42,7 @@
                 <tbody>
                     <tr><td class="required">S PNR</td><td>Required</td><td>SPNR78901</td></tr>
                     <tr><td class="required">Client ID</td><td>Required</td><td>CL-1001</td></tr>
+                    <tr><td class="required">Ticket No</td><td>Required</td><td>TKT-1001</td></tr>
                     <tr><td class="required">Passenger Name</td><td>Required</td><td>MR RAHUL SHARMA</td></tr>
                     <tr><td class="required">Sector</td><td>Required</td><td>MAA-DXB</td></tr>
                     <tr><td class="required">Booking Type</td><td>Required</td><td>Web Booking</td></tr>
@@ -53,11 +54,12 @@
                     <tr><td class="required">Travel Start Date</td><td>Date</td><td>2026-09-05</td></tr>
                     <tr><td class="required">Travel End Date</td><td>Date</td><td>2026-09-09</td></tr>
                     <tr><td class="required">Booking Date</td><td>Date</td><td>2026-08-29</td></tr>
+                    <tr><td class="required">Status</td><td>Required</td><td>Confirmed / Cancelled</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <div class="note">All 13 columns are required, matching Add Booking. A Client ID not yet registered is created automatically using that ID as the client name. Matching coupon rules are applied to Net Amount. If an S PNR already exists, its booking details are updated from this file; repeated S PNRs within the same file are skipped.</div>
+        <div class="note">The Status column is required and must be either Confirmed or Cancelled. A cancelled booking does not earn a coupon, and any existing earned coupon is automatically reversed. A Client ID not yet registered is created automatically using that ID as the client name. Matching coupon rules are applied to Net Amount. Confirmed imported passengers automatically earn a coupon and ledger entry; it is released when the Travel Start Date has passed, otherwise it stays pending. Multiple passengers may share an S PNR; each passenger must have a unique Ticket No. Existing rows are updated by Ticket No without duplicating coupons.</div>
     </div>
 </div>
 

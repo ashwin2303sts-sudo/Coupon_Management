@@ -1,9 +1,23 @@
 * { box-sizing: border-box; }
-body { margin:0; font-family: Arial, Helvetica, sans-serif; background:#f5f7fb; color:#12213d; }
+html, body {
+    height: 100%;
+    max-height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #f5f7fb;
+    color: #12213d;
+}
 button, input, select { font:inherit; }
 button { cursor:pointer; }
 button:disabled { cursor:not-allowed; }
-.app { min-height:100vh; display:flex; }
+.app {
+    height: 100vh;
+    max-height: 100vh;
+    display: flex;
+    overflow: hidden;
+}
 .sidebar { width:285px; background:#0e172b; color:#fff; flex-shrink:0; min-height:100vh; position:fixed; left:0; top:0; bottom:0; overflow:auto; z-index:20; }
 .brand { height:72px; padding:20px 22px; font-size:24px; font-weight:800; border-bottom:1px solid #293247; letter-spacing:.5px; }
 .brand-icon { margin-right:8px; }
@@ -149,14 +163,47 @@ nav { padding:16px 0 10px; }
     .rules-flow-row { padding:10px 12px; }
     .rules-add-rule-block h2 { font-size:20px; }
 }
-.main { margin-left:285px; width:calc(100% - 285px); min-width:0; }
-.topbar { height:78px; background:white; border-bottom:1px solid #dce2ec; display:flex; align-items:center; padding:0 28px; gap:14px; position:sticky; top:0; z-index:10; }
+.main {
+    margin-left: 285px;
+    width: calc(100% - 285px);
+    height: 100vh;
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+.topbar {
+    height: 78px;
+    flex: 0 0 78px;
+    background: white;
+    border-bottom: 1px solid #dce2ec;
+    display: flex;
+    align-items: center;
+    padding: 0 28px;
+    gap: 14px;
+    position: relative;
+    z-index: 10;
+}
 .topbar h1 { font-size:23px; margin:0; }
 .menu-btn { display:none; background:#24479a; color:white; border:0; border-radius:6px; padding:9px 13px; font-weight:700; }
 .top-actions { margin-left:auto; display:flex; gap:16px; align-items:center; }
 .admin-pill { background:#f7f8fb; padding:10px 16px; border-radius:6px; font-size:13px; }
 .logout-btn { background:#e52c2c; color:white; border:0; border-radius:6px; padding:10px 17px; font-weight:700; }
-.content { padding:32px 46px 60px; max-width:1500px; margin:auto; }
+.content {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: calc(100vh - 78px);
+    max-height: calc(100vh - 78px);
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 24px 36px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
 .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:24px; margin-bottom:24px; }
 .stat { border-radius:9px; padding:28px 25px; color:white; min-height:148px; display:flex; flex-direction:column; justify-content:center; text-align:center; }
 .stat span { font-size:13px; font-weight:700; letter-spacing:.4px; }
@@ -580,11 +627,11 @@ td { padding:15px; border-bottom:1px solid #e3e7ee; font-size:13px; vertical-ali
 .coupon-pill.pill-welcome10 { background:#fee2e2; color:#ef4444; }
 .coupon-pill:not(.pill-save20):not(.pill-flat500):not(.pill-newuser):not(.pill-welcome10) { background:#e0f2fe; color:#0284c7; }
 
-.status-pill { display:inline-block; padding:4px 12px; border-radius:12px; font-size:10.5px; font-weight:700; line-height:1.2; }
-.status-pill.pill-completed { background:#dcfce7; color:#16a34a; }
-.status-pill.pill-pending { background:#fef3c7; color:#d97706; }
-.status-pill.pill-cancelled { background:#fee2e2; color:#ef4444; }
-.status-pill:not(.pill-completed):not(.pill-pending):not(.pill-cancelled) { background:#f1f5f9; color:#475569; }
+.status-pill { display:inline-block; padding:4px 12px; border-radius:12px; font-size:11px; font-weight:700; line-height:1.2; text-align:center; white-space:nowrap; }
+.status-pill.pill-completed { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
+.status-pill.pill-pending { background:#fef3c7; color:#d97706; border:1px solid #fde68a; }
+.status-pill.pill-cancelled { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
+.status-pill:not(.pill-completed):not(.pill-pending):not(.pill-cancelled) { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
 
 .rdm-no-records { text-align:center; padding:35px 20px; color:#78869b; font-size:13px; }
 
@@ -746,9 +793,7 @@ table tbody tr:hover{background:#f6f9ff}
 .required-label::after { content:""; }
 .required-label.missing { color:#d62828; }
 .passenger-link { border:0; background:none; padding:0; color:#2467d6; font-weight:800; text-decoration:underline; }
-.booking-table-wrap { overflow-x:auto; overflow-y:visible; padding-bottom:4px; }
-.booking-fixed-scroll { position:fixed; left:265px; right:0; bottom:0; height:18px; overflow-x:auto; overflow-y:hidden; background:#f0f2f6; border-top:1px solid #d6dce7; z-index:50; }
-.booking-fixed-scroll > div { height:1px; }
+.booking-table-wrap { overflow:auto; padding-bottom:4px; }
 .discount-hint { display:block; margin:-8px 0 16px; color:#5f6f88; font-size:11px; }
 .auto-box { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; background:#f7f9fc; border:1px solid #dfe5ee; border-radius:7px; padding:14px; margin-bottom:12px; }
 .auto-box div { display:flex; flex-direction:column; gap:4px; }
@@ -756,53 +801,130 @@ table tbody tr:hover{background:#f6f9ff}
 .auto-box span { font-weight:800; color:#182943; }
 .booking-detail-actions { align-items:center; }
 .booking-detail-actions form { margin:0; }
-@media(max-width:900px){ .booking-fixed-scroll{left:0;} .auto-box{grid-template-columns:1fr;} }
+@media(max-width:900px){ .auto-box{grid-template-columns:1fr;} }
 
 
 /* ============================================================
-   GLOBAL HORIZONTAL SCROLLBAR / SINGLE-LINE TABLE LAYOUT
-   One fixed scrollbar for the whole page; native table
-   scrollbars are hidden so duplicate horizontal bars do not appear.
+   GLOBAL UNIFIED TABLE SCROLLING SYSTEM
+   - Exactly ONE vertical scrollbar on the table container (.table-wrap)
+   - Fixed/sticky table headers across all pages
+   - Native horizontal scrolling preserved (overflow-x: auto)
+   - Zero page-level/outer vertical scrollbar
    ============================================================ */
-html, body { max-width:100%; overflow-x:hidden; }
+.table-wrap,
+.booking-table-wrap,
+.ledger-table-wrap,
+.rdm-table-wrap,
 .content .table-wrap,
 .content .booking-table-wrap,
 .content .ledger-table-wrap,
-.content .rdm-table-card,
 .content .rdm-table-wrap {
-    overflow-x:hidden !important;
-    overflow-y:visible;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    position: relative;
+    scrollbar-width: thin;
+    scrollbar-color: #8492a6 #e8edf3;
 }
+
+.table-wrap::-webkit-scrollbar,
+.booking-table-wrap::-webkit-scrollbar,
+.ledger-table-wrap::-webkit-scrollbar,
+.rdm-table-wrap::-webkit-scrollbar,
+.content .table-wrap::-webkit-scrollbar,
+.content .booking-table-wrap::-webkit-scrollbar,
+.content .ledger-table-wrap::-webkit-scrollbar,
+.content .rdm-table-wrap::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+
+.table-wrap::-webkit-scrollbar-track,
+.booking-table-wrap::-webkit-scrollbar-track,
+.ledger-table-wrap::-webkit-scrollbar-track,
+.rdm-table-wrap::-webkit-scrollbar-track,
+.content .table-wrap::-webkit-scrollbar-track,
+.content .booking-table-wrap::-webkit-scrollbar-track,
+.content .ledger-table-wrap::-webkit-scrollbar-track,
+.content .rdm-table-wrap::-webkit-scrollbar-track {
+    background: #e8edf3;
+    border-radius: 5px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb,
+.booking-table-wrap::-webkit-scrollbar-thumb,
+.ledger-table-wrap::-webkit-scrollbar-thumb,
+.rdm-table-wrap::-webkit-scrollbar-thumb,
+.content .table-wrap::-webkit-scrollbar-thumb,
+.content .booking-table-wrap::-webkit-scrollbar-thumb,
+.content .ledger-table-wrap::-webkit-scrollbar-thumb,
+.content .rdm-table-wrap::-webkit-scrollbar-thumb {
+    background: #8492a6;
+    border-radius: 5px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover,
+.booking-table-wrap::-webkit-scrollbar-thumb:hover,
+.ledger-table-wrap::-webkit-scrollbar-thumb:hover,
+.rdm-table-wrap::-webkit-scrollbar-thumb:hover,
+.content .table-wrap::-webkit-scrollbar-thumb:hover,
+.content .booking-table-wrap::-webkit-scrollbar-thumb:hover,
+.content .ledger-table-wrap::-webkit-scrollbar-thumb:hover,
+.content .rdm-table-wrap::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
 .content table th,
 .content table td {
-    white-space:nowrap;
-    word-break:normal;
-    overflow-wrap:normal;
-}
-.global-fixed-scroll {
-    position:fixed;
-    left:265px;
-    right:0;
-    bottom:0;
-    height:18px;
-    overflow-x:auto;
-    overflow-y:hidden;
-    background:#f0f2f6;
-    border-top:1px solid #d6dce7;
-    z-index:1000;
-    display:none;
-}
-.global-fixed-scroll > div { height:1px; min-width:1px; }
-@media(max-width:900px) {
-    .global-fixed-scroll { left:0; }
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
 }
 
-.booking-fixed-scroll { display:none !important; }
+/* Sticky table headers across all pages */
+table thead th,
+.content table thead th,
+.table-wrap table thead th,
+.table-wrap thead th,
+.booking-table-wrap table thead th,
+.ledger-table-wrap table thead th,
+.rdm-data-table thead th,
+.customer-bookings-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f7f9fc;
+    box-shadow: inset 0 -1px 0 #dfe5ee;
+}
+
+/* Native horizontal scrollbar is directly on the table container; disable duplicate fixed scrollbar */
+.global-fixed-scroll {
+    display: none !important;
+}
 
 /* Wide data tables: keep every record on one horizontal line */
-.booking-table-wrap table { min-width:1700px; table-layout:auto; }
-.ledger-table-wrap table { min-width:1100px; table-layout:auto; }
-.rdm-table-card .rdm-data-table { min-width:1200px; table-layout:auto; }
+.booking-table-wrap table { min-width: 1480px; table-layout: auto; }
+#bookingTable th, #bookingTable td { padding: 11px 12px; font-size: 12px; }
+#bookingTable th:nth-child(1), #bookingTable td:nth-child(1) { min-width: 90px; }
+#bookingTable th:nth-child(2), #bookingTable td:nth-child(2) { min-width: 110px; font-weight: 700; color: #1e293b; }
+#bookingTable th:nth-child(3), #bookingTable td:nth-child(3) { min-width: 130px; }
+#bookingTable th:nth-child(4), #bookingTable td:nth-child(4) { min-width: 80px; }
+#bookingTable th:nth-child(5), #bookingTable td:nth-child(5) { min-width: 85px; }
+#bookingTable th:nth-child(6), #bookingTable td:nth-child(6) { min-width: 95px; }
+#bookingTable th:nth-child(7), #bookingTable td:nth-child(7) { min-width: 90px; }
+#bookingTable th:nth-child(8), #bookingTable td:nth-child(8) { min-width: 110px; }
+#bookingTable th:nth-child(9), #bookingTable td:nth-child(9) { min-width: 95px; }
+#bookingTable th:nth-child(10), #bookingTable td:nth-child(10) { min-width: 90px; }
+#bookingTable th:nth-child(11), #bookingTable td:nth-child(11), .col-status { min-width: 110px; text-align: center; }
+#bookingTable th:nth-child(12), #bookingTable td:nth-child(12) { min-width: 95px; text-align: right; }
+#bookingTable th:nth-child(13), #bookingTable td:nth-child(13) { min-width: 95px; }
+#bookingTable th:nth-child(14), #bookingTable td:nth-child(14) { min-width: 95px; }
+#bookingTable th:nth-child(15), #bookingTable td:nth-child(15) { min-width: 100px; text-align: left; }
+.ledger-table-wrap table { min-width: 1150px; table-layout: auto; }
+.rdm-table-card .rdm-data-table { min-width: 1200px; table-layout: auto; }
 
 /* ============================================================
    CLIENT PORTAL – Single-row "Client Details" card header
@@ -914,4 +1036,203 @@ html, body { max-width:100%; overflow-x:hidden; }
     .cd-header { flex-wrap: wrap; }
     .cd-right-actions { margin-left: 0; }
     .cd-date-input { width: 110px; }
+}
+
+/* ============================================================
+   SHARED CARD & PAGE-LEVEL LAYOUT FOR TABLES
+   - All table container cards flex to fill available viewport height
+   - Headers, summaries, and filters do not shrink
+   - Table rows scroll vertically inside their own container
+   - Zero outer page vertical scrollbar
+   ============================================================ */
+.card:has(.table-wrap),
+.card:has(table),
+.booking-page-card,
+.ledger-card,
+.rdm-table-card,
+.customer-page-card,
+.coupon-records-card,
+.rules-table-card,
+.portal-table-card,
+.passenger-results-card,
+.excel-upload-panel.right-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-bottom: 0;
+}
+
+.rdm-page {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.rdm-page-header,
+.rdm-filter-card,
+.rdm-table-title,
+.card-head,
+.ledger-summary-grid,
+.ledger-filters,
+.ledger-pagination,
+.client-banner,
+.content > .stats-grid,
+.three-col,
+.rules-guide-card,
+.rules-add-rule-block,
+.panel-header,
+.right-panel .note,
+.cd-header {
+    flex-shrink: 0;
+}
+
+.excel-upload-layout {
+    display: grid;
+    grid-template-columns: 1.05fr 1.35fr;
+    gap: 24px;
+    align-items: stretch;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.excel-upload-panel {
+    background: #fff;
+    border: 1px solid #dfe5ee;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(17,24,39,.04);
+    padding: 20px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.left-panel {
+    overflow-y: auto;
+}
+
+.right-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.bookings-content {
+    padding-bottom: 24px;
+}
+
+#dateFilterForm {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+/* Responsive adjustments */
+@media (max-height: 900px) {
+    .content {
+        padding: 16px 24px;
+    }
+    .topbar {
+        height: 64px;
+        flex: 0 0 64px;
+    }
+    .content {
+        height: calc(100vh - 64px);
+        max-height: calc(100vh - 64px);
+    }
+    .stats-grid {
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .stat {
+        min-height: 80px;
+        padding: 12px 14px;
+    }
+    .stat strong {
+        font-size: 22px;
+        margin: 6px 0;
+    }
+    .card {
+        padding: 16px 18px;
+        margin-bottom: 12px;
+    }
+    .rules-guide-card {
+        padding: 0 0 10px;
+        margin-bottom: 12px;
+    }
+    .rules-guide-head {
+        padding: 12px 16px 8px;
+    }
+    .rules-logic-grid {
+        padding: 12px 16px 0;
+        gap: 10px;
+    }
+    .rules-logic-box {
+        min-height: 85px;
+        padding: 10px;
+    }
+    .rules-flow-row {
+        margin: 10px 16px 0;
+        padding: 8px 10px;
+    }
+    .rules-add-rule-block {
+        padding: 12px 16px 14px;
+        margin-bottom: 12px;
+    }
+    .rules-add-rule-block h2 {
+        margin: 0 0 10px;
+        font-size: 18px;
+    }
+    .client-banner {
+        padding: 16px 18px;
+        margin-bottom: 12px;
+    }
+    .client-banner h2 {
+        font-size: 20px;
+        margin: 10px 0 4px;
+    }
+    .directory-grid {
+        margin-top: 12px;
+        gap: 12px;
+    }
+    .three-col {
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .three-col .card {
+        padding: 14px 16px;
+    }
+    .auto-box {
+        gap: 4px;
+        padding: 8px 10px;
+        margin-bottom: 8px;
+    }
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        width: 285px;
+    }
+    .main {
+        margin-left: 0;
+        width: 100%;
+    }
+    .topbar {
+        flex-basis: 64px;
+    }
+    .menu-btn {
+        display: inline-block;
+    }
+}
+
+.passenger-picker {
+    margin-bottom: 18px;
+}
+
+.passenger-picker-input {
+    width: 100%;
+    margin: 0;
+    padding: 11px 13px;
 }

@@ -141,6 +141,29 @@ def get_or_create_customer(data):
     return customer
 
 
+def find_booking(booking_id=None, ticket_no=None, pnr=None):
+    if ticket_no:
+        booking = Booking.objects.filter(ticket_no=ticket_no).first()
+        if booking:
+            return booking
+
+    if booking_id is not None and str(booking_id).isdigit():
+        booking = Booking.objects.filter(pk=int(booking_id)).first()
+        if booking and (not pnr or booking.pnr == pnr):
+            return booking
+
+    if pnr:
+        matches = Booking.objects.filter(pnr=pnr)
+        if matches.count() == 1:
+            return matches.first()
+        if matches.exists():
+            raise ValueError(
+                f"Booking PNR {pnr} matches multiple passengers; provide booking_id or ticket_no."
+            )
+
+    return None
+
+
 # =========================================================
 # READ
 # =========================================================
@@ -215,9 +238,11 @@ def read(name):
 
             result.append(
                 {
-                    "id": booking.pnr,
+                    "id": booking.pk,
+                    "booking_id": booking.pk,
                     "s_pnr": booking.pnr,
                     "pnr": booking.pnr,
+                    "ticket_no": booking.ticket_no or "",
 
                     "client": booking.client.name if booking.client else "",
                     "client_id": booking.client_id,
@@ -252,7 +277,9 @@ def read(name):
                     "mobile": booking.mobile or "",
                     "airline_pnr": booking.airline_pnr or "",
 
-                    "status": booking.status,
+                    "status": "Cancelled" if str(booking.status or "").strip().lower() == "cancelled" else "Confirmed",
+                    "auto": booking.is_auto,
+                    "manual": booking.is_manual,
                     "booking_type": booking.booking_type,
                     "travel_type": booking.travel_type,
 
@@ -279,6 +306,11 @@ def read(name):
             "booking",
         ).all().order_by("-created_at")
 
+        booking_ticket_map = {
+            b.pk: (b.ticket_no or "")
+            for b in Booking.objects.all()
+        }
+
         result = []
 
         for coupon in coupons:
@@ -287,6 +319,12 @@ def read(name):
 
             if not booking_ref and coupon.booking:
                 booking_ref = coupon.booking.pnr
+
+            ticket_no = ""
+            if coupon.booking and coupon.booking.ticket_no:
+                ticket_no = coupon.booking.ticket_no
+            elif coupon.booking_id in booking_ticket_map:
+                ticket_no = booking_ticket_map[coupon.booking_id]
 
             result.append(
                 {
@@ -307,6 +345,8 @@ def read(name):
                     ),
 
                     "booking_ref": booking_ref,
+                    "booking_id": coupon.booking_id or "",
+                    "ticket_no": ticket_no,
 
                     "passenger_name": coupon.passenger_name or "",
 
@@ -412,6 +452,7 @@ def read(name):
 
                     "booking_id": redemption.booking_ref or "",
                     "booking_ref": redemption.booking_ref or "",
+                    "booking_record_id": redemption.booking_id or "",
 
                     "coupon_code": redemption.coupon_code or "",
 
@@ -469,6 +510,20 @@ def read(name):
             "booking",
         ).all().order_by("-date", "-created_at")
 
+        booking_status_map = {
+            b.pk: (
+                "Cancelled"
+                if str(b.status or "").strip().lower() == "cancelled"
+                else "Confirmed"
+            )
+            for b in Booking.objects.all()
+        }
+
+        booking_ticket_map = {
+            b.pk: (b.ticket_no or "")
+            for b in Booking.objects.all()
+        }
+
         result = []
 
         for entry in ledger_entries:
@@ -477,6 +532,19 @@ def read(name):
 
             if not booking_ref and entry.booking:
                 booking_ref = entry.booking.pnr
+
+            booking_status = "-"
+            ticket_no = ""
+            if entry.booking:
+                booking_status = (
+                    "Cancelled"
+                    if str(entry.booking.status or "").strip().lower() == "cancelled"
+                    else "Confirmed"
+                )
+                ticket_no = entry.booking.ticket_no or ""
+            elif entry.booking_id in booking_status_map:
+                booking_status = booking_status_map[entry.booking_id]
+                ticket_no = booking_ticket_map.get(entry.booking_id, "")
 
             result.append(
                 {
@@ -496,6 +564,9 @@ def read(name):
                     ),
 
                     "booking_ref": booking_ref,
+                    "booking_id": entry.booking_id or "",
+                    "booking_status": booking_status,
+                    "ticket_no": ticket_no,
 
                     "coupon_code": entry.coupon_code or "",
 
@@ -653,19 +724,23 @@ def write(name, value):
             pnr = (
                 row.get("s_pnr")
                 or row.get("pnr")
-                or row.get("id")
             )
 
             if not pnr:
                 continue
 
-            incoming_ids.add(pnr)
-
             customer = get_or_create_customer(row)
 
-            Booking.objects.update_or_create(
+            ticket_no = row.get("ticket_no") or None
+            booking = find_booking(
+                booking_id=row.get("booking_id"),
+                ticket_no=ticket_no,
                 pnr=pnr,
-                defaults={
+            )
+
+            defaults = {
+                    "pnr": pnr,
+                    "ticket_no": ticket_no,
                     "client": customer,
 
                     "passenger_name": row.get(
@@ -752,11 +827,17 @@ def write(name, value):
                     "parent_pnr": row.get(
                         "parent_pnr"
                     ) or None,
-                },
-            )
+                }
+            if booking is None:
+                booking = Booking.objects.create(**defaults)
+            else:
+                for field, value in defaults.items():
+                    setattr(booking, field, value)
+                booking.save()
+            incoming_ids.add(booking.pk)
 
         Booking.objects.exclude(
-            pnr__in=incoming_ids
+            pk__in=incoming_ids
         ).delete()
 
         return
@@ -792,17 +873,17 @@ def write(name, value):
             if not customer:
                 customer = get_or_create_customer(row)
 
-            booking_ref = (
-                row.get("booking_ref")
-                or row.get("booking_id")
+            booking_ref = row.get("booking_ref") or None
+            legacy_booking_ref = row.get("booking_id")
+            if not booking_ref and legacy_booking_ref and not str(legacy_booking_ref).isdigit():
+                booking_ref = legacy_booking_ref
+            booking = find_booking(
+                booking_id=row.get("booking_id"),
+                ticket_no=row.get("ticket_no"),
+                pnr=booking_ref,
             )
-
-            booking = None
-
-            if booking_ref:
-                booking = Booking.objects.filter(
-                    pnr=booking_ref
-                ).first()
+            if booking is not None:
+                booking_ref = booking_ref or booking.pnr
 
             Coupon.objects.update_or_create(
                 id=coupon_id,
@@ -910,6 +991,11 @@ def write(name, value):
                 or row.get("booking_id")
                 or None
             )
+            booking_record_id = row.get("booking_record_id")
+            if not booking_record_id and booking_ref:
+                matches = Booking.objects.filter(pnr=booking_ref)
+                if matches.count() == 1:
+                    booking_record_id = str(matches.first().pk)
 
             redemption_date = row.get("date")
 
@@ -967,6 +1053,7 @@ def write(name, value):
                         )
                     ),
 
+                    "booking_id": booking_record_id or "",
                     "booking_ref": booking_ref,
 
                     "coupon_code": row.get(
@@ -1077,18 +1164,14 @@ def write(name, value):
                     name=row.get("customer_name")
                 ).first()
 
-            booking_ref = (
-                row.get("booking_ref")
-                or row.get("booking_id")
-                or None
+            booking_ref = row.get("booking_ref") or None
+            legacy_booking_ref = row.get("booking_id")
+            if not booking_ref and legacy_booking_ref and not str(legacy_booking_ref).isdigit():
+                booking_ref = legacy_booking_ref
+            booking = find_booking(
+                booking_id=row.get("booking_id"),
+                pnr=booking_ref,
             )
-
-            booking = None
-
-            if booking_ref:
-                booking = Booking.objects.filter(
-                    pnr=booking_ref
-                ).first()
 
             Ledger.objects.update_or_create(
                 id=ledger_id,

@@ -88,9 +88,24 @@ class Customer(models.Model):
 
 class Booking(models.Model):
 
+    STATUS_CHOICES = [
+        ("Confirmed", "Confirmed"),
+        ("Cancelled", "Cancelled"),
+    ]
+
+    id = models.BigAutoField(
+        primary_key=True
+    )
+
     pnr = models.CharField(
         max_length=50,
-        primary_key=True
+    )
+
+    ticket_no = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
+        blank=True
     )
 
     client = models.ForeignKey(
@@ -164,7 +179,18 @@ class Booking(models.Model):
 
     status = models.CharField(
         max_length=30,
+        choices=STATUS_CHOICES,
         default="Confirmed"
+    )
+
+    is_auto = models.BooleanField(
+        db_column="auto",
+        default=False
+    )
+
+    is_manual = models.BooleanField(
+        db_column="manual",
+        default=False
     )
 
     booking_type = models.CharField(

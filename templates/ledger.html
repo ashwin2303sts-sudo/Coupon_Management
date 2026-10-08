@@ -29,7 +29,7 @@
         <table class="ledger-table">
             <thead><tr>
                 <th>S.NO</th><th>TRANSACTION ID</th><th>DATE</th><th>CUSTOMER</th><th>BOOKING ID</th>
-                <th>TYPE</th><th>COUPON CODE</th><th>AMOUNT</th><th>STATUS</th>
+                <th>TYPE</th><th>COUPON CODE</th><th>BOOKING STATUS</th><th>AMOUNT</th><th>STATUS</th>
             </tr></thead>
             <tbody>
             {% for x in ledger %}
@@ -38,14 +38,15 @@
                 <td class="ledger-id">{{ x.txn_id }}</td>
                 <td>{{ x.date }}</td>
                 <td>{{ x.customer_name }}<small>{{ x.customer_id }}</small></td>
-                <td>{{ x.booking_ref }}</td>
+                <td>{{ x.booking_ref }}{% if x.ticket_no and x.ticket_no != '-' %}<br><small style="color:#2563eb;font-weight:700;">{{ x.ticket_no }}</small>{% endif %}</td>
                 <td><span class="ledger-type">{{ x.type }}</span></td>
                 <td>{{ x.coupon_code }}</td>
+                <td>{% if x.booking_status == 'Cancelled' %}<span class="status-pill pill-cancelled">Cancelled</span>{% elif x.booking_status == 'Confirmed' %}<span class="status-pill pill-completed">Confirmed</span>{% else %}{{ x.booking_status|default:"—" }}{% endif %}</td>
                 <td class="{% if x.amount < 0 %}amount-red{% else %}money{% endif %}">₹{{ x.amount|floatformat:2 }}</td>
                 <td><span class="ledger-status {% if x.status == 'SUCCESS' or x.status == 'COMPLETED' or x.status == 'AVAILABLE' or x.status == 'ELIGIBLE' %}status-paid{% elif x.status == 'REVERSED' or x.status == 'FAILED' %}status-refunded{% else %}status-pending{% endif %}">{{ x.status }}</span></td>
             </tr>
             {% empty %}
-            <tr><td class="ledger-empty" colspan="9">No transactions match these filters.</td></tr>
+            <tr><td class="ledger-empty" colspan="10">No transactions match these filters.</td></tr>
             {% endfor %}
             </tbody>
         </table>

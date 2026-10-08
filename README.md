@@ -7,7 +7,8 @@ A Django + MySQL/MariaDB (XAMPP) coupon management website with working sidebar 
 - Username: `admin`
 - Password: `admin123`
 
-The admin account is created automatically by `python manage.py migrate`.
+The root-level `SCHEMA.sql` creates this first-run account. Its legacy
+plaintext password is upgraded to a hash after the first successful login.
 
 ## XAMPP setup on Windows
 
@@ -23,16 +24,22 @@ Default configuration:
 
 If your XAMPP MySQL root account has a password, put that password in `.env`.
 
-### 2. Create the database
+### 2. Import the database schema
 
 You can use phpMyAdmin:
 
 1. Open `http://localhost/phpmyadmin/`
-2. Import `database/xampp_coupon_management.sql`
+2. Import the root-level `SCHEMA.sql`
 
-Or open MySQL/phpMyAdmin SQL and run the same file.
+The file creates the database and all current application tables, indexes,
+relationships, Django migration records, and the initial admin account. It is
+safe to run `python manage.py migrate` afterward; the schema already records
+the current migrations.
 
-The SQL file creates only the database. Django creates the application table safely through migrations.
+Each passenger booking has its own database ID and unique Ticket No, so
+multiple passengers can share the same S PNR. On an existing installation,
+run `python manage.py migrate` to apply the duplicate-PNR schema update; do not
+re-import `SCHEMA.sql` into a database that already contains your data.
 
 ### 3. Open the project in VS Code
 
@@ -75,18 +82,14 @@ MYSQL_PORT=3306
 
 If your MySQL root user has a password, enter it after `MYSQL_PASSWORD=`.
 
-### 7. Create Django tables and admin user
+### 7. Verify database migrations
 
 ```powershell
 python manage.py migrate
 ```
 
-Expected result includes:
-
-```text
-Applying core.0001_initial... OK
-Applying core.0002_seed_admin... OK
-```
+Because `SCHEMA.sql` includes the schema and migration records, this should
+report that no migrations are pending.
 
 ### 8. Optional: import old JSON backup data
 
@@ -161,7 +164,9 @@ All sidebar links are connected to Django routes:
 10. Reverse Coupon restores the redeemed amount and records a reversal in Ledger.
 11. Client Portal shows the customer's booking and coupon balance.
 12. Rules and Settings control coupon calculation/redemption configuration.
-13. Excel Upload can add multiple bookings and create their coupon/ledger records.
+13. Excel Upload can add multiple bookings and automatically create one coupon
+    and ledger earning record per passenger. Coupons release immediately when
+    the travel start date has arrived; otherwise they remain pending until then.
 
 ## Important data-integrity changes
 

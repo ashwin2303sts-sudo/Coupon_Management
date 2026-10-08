@@ -2,8 +2,8 @@
 {% block page_title %}Coupons{% endblock %}
 {% block content %}
 <div class="stats-grid">
-    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available_points|floatformat:2 }}</strong><small>Travel Start Date reached</small></div>
-    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending_points|floatformat:2 }}</strong><small>Before Travel Start Date</small></div>
+    <div class="stat green"><span>AVAILABLE COUPON POINTS</span><strong>{{ available_points|floatformat:2 }}</strong><small>Day after Travel Start Date</small></div>
+    <div class="stat orange"><span>PENDING COUPON POINTS</span><strong>{{ pending_points|floatformat:2 }}</strong><small>Through Travel Start Date</small></div>
     <div class="stat blue"><span>TOTAL COUPON POINTS</span><strong>{{ total_coupon_points|floatformat:2 }}</strong><small>Available + Pending</small></div>
 </div>
 
@@ -12,13 +12,16 @@
         <div class="card-head"><h2>Earn Coupon</h2></div>
         <form method="post" action="{% url 'earn_coupon' %}" id="earnForm">
             {% csrf_token %}
-            <label>PASSENGER NAME *</label>
-            <input id="earnPassengerName" name="passenger_name" placeholder="Enter Passenger Name" list="passengerList" required>
-            <datalist id="passengerList">{% for p in passenger_records %}<option value="{{ p.passenger_name }}"></option>{% endfor %}</datalist>
+            <label for="earnPassengerSearch">PASSENGER / TICKET *</label>
+            <div class="passenger-picker" data-passenger-picker>
+                <input id="earnPassengerSearch" class="passenger-picker-input" type="text" list="passengerOptions" placeholder="Type passenger, S PNR, or ticket..." autocomplete="off" required>
+                <input id="earnPassengerName" type="hidden" name="booking_id">
+            </div>
             <div class="auto-box">
                 <div><b>Passenger Name</b><span id="earnName">-</span></div>
                 <div><b>Client ID</b><span id="earnClient">-</span></div>
                 <div><b>S PNR</b><span id="earnPnr">-</span></div>
+                <div><b>Ticket No</b><span id="earnTicket">-</span></div>
                 <div><b>Net Amount</b><span id="earnNet">₹0.00</span></div>
                 <div><b>Points</b><span id="earnPoints">0.00</span></div>
                 <div><b>Sector</b><span id="earnSector">-</span></div>
@@ -37,9 +40,12 @@
         <div class="card-head"><h2>Release Coupon</h2></div>
         <form method="post" action="{% url 'release_coupon' %}">
             {% csrf_token %}
-            <label>S PNR *</label>
-            <input name="booking_ref" placeholder="Enter S PNR" required>
-            <p class="muted">Release is allowed only when the Travel Start Date has arrived.</p>
+            <label for="releasePassengerSearch">PASSENGER / TICKET *</label>
+            <div class="passenger-picker" data-passenger-picker>
+                <input id="releasePassengerSearch" class="passenger-picker-input" type="text" list="passengerOptions" placeholder="Type passenger, S PNR, or ticket..." autocomplete="off" required>
+                <input id="releasePassengerName" type="hidden" name="booking_id">
+            </div>
+            <p class="muted">Release is allowed only on the day after the Travel Start Date.</p>
             <button class="btn success-btn full">RELEASE COUPON</button>
         </form>
     </div>
@@ -51,17 +57,18 @@
     </div>
 </div>
 
-<div class="card">
+<div class="card coupon-records-card">
     <div class="card-head"><h2>Coupon Records</h2><span class="count-pill">POINTS = NET AMOUNT ÷ 100</span></div>
     <div class="table-wrap">
         <table>
-            <thead><tr><th>PASSENGER NAME</th><th>CLIENT ID</th><th>S PNR</th><th>POINTS</th><th>COUPON AMOUNT</th><th>STATUS</th><th>TRAVEL START</th><th>TRAVEL END</th></tr></thead>
+            <thead><tr><th>PASSENGER NAME</th><th>CLIENT ID</th><th>S PNR</th><th>TICKET NO</th><th>POINTS</th><th>COUPON AMOUNT</th><th>STATUS</th><th>TRAVEL START</th><th>TRAVEL END</th></tr></thead>
             <tbody>
                 {% for c in coupons %}
                 <tr>
                     <td>{{ c.passenger_name|default:"-" }}</td>
                     <td>{{ c.customer_id }}</td>
                     <td>{{ c.booking_ref }}</td>
+                    <td>{{ c.ticket_no|default:"—" }}</td>
                     <td>{{ c.points|floatformat:2 }}</td>
                     <td>₹{% if c.status == 'AVAILABLE' %}{{ c.coupon_amount|floatformat:2|default:"0" }}{% else %}0.00{% endif %}</td>
                     <td><span class="badge {% if c.status == 'AVAILABLE' %}success{% elif c.status == 'REDEEMED' %}info{% else %}pending{% endif %}">{{ c.status }}</span></td>
@@ -69,7 +76,7 @@
                     <td>{{ c.travel_end_date|default:"-" }}</td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="8">No coupons.</td></tr>
+                <tr><td colspan="9">No coupons.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -81,16 +88,20 @@
         <h2>Redeem Coupon</h2>
         <form method="post" action="{% url 'redeem_coupon' %}">
             {% csrf_token %}
-            <label>PASSENGER NAME *</label>
-            <input id="redeemPassengerName" name="passenger_name" placeholder="Enter Passenger Name" list="passengerList" required>
+            <label for="redeemPassengerSearch">PASSENGER / TICKET *</label>
+            <div class="passenger-picker" data-passenger-picker>
+                <input id="redeemPassengerSearch" class="passenger-picker-input" type="text" list="passengerOptions" placeholder="Type passenger, S PNR, or ticket..." autocomplete="off" required>
+                <input id="redeemPassengerName" type="hidden" name="booking_id">
+            </div>
             <div class="auto-box">
                 <div><b>Passenger Name</b><span id="redeemName">-</span></div>
                 <div><b>Client ID</b><span id="redeemClient">-</span></div>
                 <div><b>S PNR</b><span id="redeemPnr">-</span></div>
+                <div><b>Ticket No</b><span id="redeemTicket">-</span></div>
                 <div><b>Net Amount</b><span id="redeemNet">₹0.00</span></div>
                 <div><b>Coupon Amount</b><span id="redeemAmount">₹0.00</span></div>
             </div>
-            <p class="muted">Coupon Amount = Available Points ÷ 10. Before Travel Start Date, Coupon Amount remains ₹0.00.</p>
+            <p class="muted">Coupon Amount = Available Points ÷ 10. Through Travel Start Date, Coupon Amount remains ₹0.00.</p>
             <div class="modal-actions">
                 <button type="button" class="btn secondary" onclick="closeModal('redeemModal')">CANCEL</button>
                 <button class="btn success-btn">REDEEM COUPON</button>
@@ -104,12 +115,16 @@
         <h2>Reverse Coupon</h2>
         <form method="post" action="{% url 'reverse_coupon' %}">
             {% csrf_token %}
-            <label>PASSENGER NAME *</label>
-            <input id="reversePassengerName" name="passenger_name" placeholder="Enter Passenger Name" list="passengerList" required>
+            <label for="reversePassengerSearch">PASSENGER / TICKET *</label>
+            <div class="passenger-picker" data-passenger-picker>
+                <input id="reversePassengerSearch" class="passenger-picker-input" type="text" list="passengerOptions" placeholder="Type passenger, S PNR, or ticket..." autocomplete="off" required>
+                <input id="reversePassengerName" type="hidden" name="booking_id">
+            </div>
             <div class="auto-box">
                 <div><b>Passenger Name</b><span id="reverseName">-</span></div>
                 <div><b>Client ID</b><span id="reverseClient">-</span></div>
                 <div><b>S PNR</b><span id="reversePnr">-</span></div>
+                <div><b>Ticket No</b><span id="reverseTicket">-</span></div>
                 <div><b>Coupon Amount</b><span id="reverseAmount">₹0.00</span></div>
             </div>
             <p class="muted">Reverse restores Coupon Amount × 10 as Available Points and adds Coupon Amount back to Booking Net Amount.</p>
@@ -121,17 +136,17 @@
     </div>
 </div>
 
+<datalist id="passengerOptions"></datalist>
+
 <script>
 const passengerRecords={{ passenger_records_json|safe }};
 const couponRecords={{ coupon_records_json|safe }};
 
 function passengerInfo(name){
-    const query=String(name||'').trim().toLowerCase();
-    return passengerRecords.find(record=>String(record.passenger_name||'').trim().toLowerCase()===query)||null;
+    return passengerRecords.find(record=>String(record.booking_id)===String(name||''))||null;
 }
 function couponForPassenger(name){
-    const query=String(name||'').trim().toLowerCase();
-    return couponRecords.filter(record=>String(record.passenger_name||'').trim().toLowerCase()===query);
+    return couponRecords.filter(record=>String(record.booking_id)===String(name||''));
 }
 function fillPassenger(name,prefix){
     const passenger=passengerInfo(name), passengerCoupons=couponForPassenger(name);
@@ -140,7 +155,7 @@ function fillPassenger(name,prefix){
     document.getElementById(prefix+'Pnr').textContent=passenger?passenger.s_pnr:'-';
     const netElement=document.getElementById(prefix+'Net');
     if(netElement)netElement.textContent=passenger?'₹'+Number(passenger.net_amount||0).toFixed(2):'₹0.00';
-    const details={Sector:passenger?.sector,Airline:passenger?.airline,AirlineType:passenger?.fare_type,AirlinePnr:passenger?.airline_pnr,TravelStart:passenger?.travel_date,TravelEnd:passenger?.end_date,BookedDate:passenger?.booked_date};
+    const details={Ticket:passenger?.ticket_no,Sector:passenger?.sector,Airline:passenger?.airline,AirlineType:passenger?.fare_type,AirlinePnr:passenger?.airline_pnr,TravelStart:passenger?.travel_date,TravelEnd:passenger?.end_date,BookedDate:passenger?.booked_date};
     Object.entries(details).forEach(([field,value])=>{
         const element=document.getElementById(prefix+field);
         if(element)element.textContent=value||'-';
@@ -153,8 +168,37 @@ function fillPassenger(name,prefix){
     if(amountElement)amountElement.textContent='₹'+(available/10).toFixed(2);
 }
 
-document.getElementById('earnPassengerName').addEventListener('input',event=>fillPassenger(event.target.value,'earn'));
-document.getElementById('redeemPassengerName').addEventListener('input',event=>fillPassenger(event.target.value,'redeem'));
-document.getElementById('reversePassengerName').addEventListener('input',event=>fillPassenger(event.target.value,'reverse'));
+document.getElementById('earnPassengerName').addEventListener('change',event=>fillPassenger(event.target.value,'earn'));
+document.getElementById('redeemPassengerName').addEventListener('change',event=>fillPassenger(event.target.value,'redeem'));
+document.getElementById('reversePassengerName').addEventListener('change',event=>fillPassenger(event.target.value,'reverse'));
+
+const passengerOptions=document.getElementById('passengerOptions');
+passengerRecords.forEach(passenger=>{
+    const option=document.createElement('option');
+    option.value=`${passenger.passenger_name} — ${passenger.s_pnr} — ${passenger.ticket_no}`;
+    passengerOptions.appendChild(option);
+});
+
+document.querySelectorAll('[data-passenger-picker]').forEach(picker=>{
+    const search=picker.querySelector('.passenger-picker-input');
+    const selected=picker.querySelector('input[name="booking_id"]');
+    const syncSelection=()=>{
+        const passenger=passengerRecords.find(record=>
+            `${record.passenger_name} — ${record.s_pnr} — ${record.ticket_no}`===search.value
+        );
+        selected.value=passenger?passenger.booking_id:'';
+        search.setCustomValidity('');
+        selected.dispatchEvent(new Event('change',{bubbles:true}));
+    };
+    search.addEventListener('input',syncSelection);
+    search.addEventListener('change',syncSelection);
+    picker.closest('form').addEventListener('submit',event=>{
+        if(!selected.value){
+            event.preventDefault();
+            search.setCustomValidity('Choose a passenger from the suggestions.');
+            search.reportValidity();
+        }
+    });
+});
 </script>
 {% endblock %}
