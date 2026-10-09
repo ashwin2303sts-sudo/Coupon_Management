@@ -238,8 +238,8 @@ def read(name):
 
             result.append(
                 {
-                    "id": booking.pk,
-                    "booking_id": booking.pk,
+                    "id": str(booking.pk),
+                    "booking_id": str(booking.pk),
                     "s_pnr": booking.pnr,
                     "pnr": booking.pnr,
                     "ticket_no": booking.ticket_no or "",
@@ -345,7 +345,7 @@ def read(name):
                     ),
 
                     "booking_ref": booking_ref,
-                    "booking_id": coupon.booking_id or "",
+                    "booking_id": str(coupon.booking_id) if coupon.booking_id else "",
                     "ticket_no": ticket_no,
 
                     "passenger_name": coupon.passenger_name or "",

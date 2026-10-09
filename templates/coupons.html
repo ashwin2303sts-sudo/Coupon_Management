@@ -179,14 +179,40 @@ passengerRecords.forEach(passenger=>{
     passengerOptions.appendChild(option);
 });
 
+function findMatchingPassenger(val) {
+    if (!val) return null;
+    const clean = val.trim().toLowerCase();
+    let p = passengerRecords.find(r =>
+        `${r.passenger_name} — ${r.s_pnr} — ${r.ticket_no}`.toLowerCase() === clean
+    );
+    if (p) return p;
+    p = passengerRecords.find(r =>
+        r.ticket_no && String(r.ticket_no).toLowerCase() === clean
+    );
+    if (p) return p;
+    p = passengerRecords.find(r =>
+        r.s_pnr && String(r.s_pnr).toLowerCase() === clean
+    );
+    if (p) return p;
+    const byName = passengerRecords.filter(r =>
+        r.passenger_name && r.passenger_name.toLowerCase() === clean
+    );
+    if (byName.length === 1) return byName[0];
+    const partials = passengerRecords.filter(r =>
+        (r.passenger_name && r.passenger_name.toLowerCase().startsWith(clean)) ||
+        (r.ticket_no && String(r.ticket_no).toLowerCase().startsWith(clean)) ||
+        (r.s_pnr && String(r.s_pnr).toLowerCase().startsWith(clean))
+    );
+    if (partials.length === 1) return partials[0];
+    return null;
+}
+
 document.querySelectorAll('[data-passenger-picker]').forEach(picker=>{
     const search=picker.querySelector('.passenger-picker-input');
     const selected=picker.querySelector('input[name="booking_id"]');
     const syncSelection=()=>{
-        const passenger=passengerRecords.find(record=>
-            `${record.passenger_name} — ${record.s_pnr} — ${record.ticket_no}`===search.value
-        );
-        selected.value=passenger?passenger.booking_id:'';
+        const passenger = findMatchingPassenger(search.value);
+        selected.value = passenger ? String(passenger.booking_id) : '';
         search.setCustomValidity('');
         selected.dispatchEvent(new Event('change',{bubbles:true}));
     };
@@ -194,9 +220,16 @@ document.querySelectorAll('[data-passenger-picker]').forEach(picker=>{
     search.addEventListener('change',syncSelection);
     picker.closest('form').addEventListener('submit',event=>{
         if(!selected.value){
-            event.preventDefault();
-            search.setCustomValidity('Choose a passenger from the suggestions.');
-            search.reportValidity();
+            const passenger = findMatchingPassenger(search.value);
+            if (passenger) {
+                selected.value = String(passenger.booking_id);
+            } else if (search.value && search.value.trim()) {
+                selected.value = search.value.trim();
+            } else {
+                event.preventDefault();
+                search.setCustomValidity('Choose a passenger from the suggestions.');
+                search.reportValidity();
+            }
         }
     });
 });

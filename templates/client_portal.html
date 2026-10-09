@@ -85,18 +85,6 @@
     </div>
 </div>
 
-{% if passenger_query %}
-<div class="card passenger-results-card">
-    <div class="card-head"><h2>Passenger Search Results</h2><span class="count-pill">{{ passenger_matches|length }} RECORDS</span></div>
-    <div id="passenger-search-results" class="table-wrap"><table><thead><tr><th>S PNR</th><th>TICKET NO</th><th>PASSENGER NAME</th><th>CLIENT ID</th><th>SECTOR</th><th>TRAVEL DATE</th></tr></thead>
-    <tbody>{% for b in passenger_matches %}<tr class="{% if selected_booking_ref == b.booking_id|stringformat:'s' %}selected-passenger-row{% endif %}"><td>{{ b.s_pnr }}</td><td>{{ b.ticket_no|default:"-" }}</td><td><a class="passenger-select-link" href="?client_id={{ customer.id|urlencode }}&passenger_name={{ passenger_query|urlencode }}&selected_passenger={{ b.booking_id|urlencode }}{% if from_date %}&from_date={{ from_date|urlencode }}{% endif %}{% if to_date %}&to_date={{ to_date|urlencode }}{% endif %}">{{ b.passenger_name|default:"-" }}</a></td><td>{{ b.client_id }}</td><td>{{ b.sector|default:"-" }}</td><td>{{ b.travel_date|default:"-" }}</td></tr>{% empty %}<tr><td colspan="6">No passenger records found.</td></tr>{% endfor %}</tbody></table></div>
-</div>
-{% if not selected_booking %}
-<script>
-    document.getElementById("passenger-search-results").scrollIntoView({ behavior: "smooth", block: "start" });
-</script>
-{% endif %}
-{% endif %}
 
 {% if selected_booking %}
 <div class="modal-overlay show passenger-details-overlay" role="presentation">
@@ -106,7 +94,7 @@
             <div class="points-total available"><span>AVAILABLE</span><strong>{{ passenger_available|floatformat:2 }}</strong></div>
             <div class="points-total pending"><span>PENDING</span><strong>{{ passenger_pending|floatformat:2 }}</strong></div>
             <div class="points-total total"><span>TOTAL COUPON POINTS</span><strong>{{ passenger_points|floatformat:2 }}</strong></div>
-            <a class="btn secondary passenger-modal-close" href="?client_id={{ customer.id|urlencode }}&passenger_name={{ passenger_query|urlencode }}{% if from_date %}&from_date={{ from_date|urlencode }}{% endif %}{% if to_date %}&to_date={{ to_date|urlencode }}{% endif %}#passenger-search-results" aria-label="Close passenger details">CLOSE</a>
+            <a class="btn secondary passenger-modal-close" href="?client_id={{ customer.id|urlencode }}&passenger_name={{ passenger_query|urlencode }}&close_modal=1{% if from_date %}&from_date={{ from_date|urlencode }}{% endif %}{% if to_date %}&to_date={{ to_date|urlencode }}{% endif %}" onclick="var m = document.querySelector('.passenger-details-overlay'); if (m) m.style.display='none';" aria-label="Close passenger details">CLOSE</a>
         </div>
         <div class="card-head passenger-history-heading"><h2>Travel History</h2><span class="count-pill">{{ passenger_history|length }} TRIPS</span></div>
         <div class="table-wrap"><table class="travel-history-table"><thead><tr><th>S.NO</th><th>TICKET NO</th><th>SECTOR</th><th>BOOKING TYPE</th><th>TRAVEL TYPE</th><th>TRAVEL START DATE</th><th>TRAVEL END DATE</th><th>BOOKED DATE</th><th>AMOUNT</th><th>STATUS</th></tr></thead>
