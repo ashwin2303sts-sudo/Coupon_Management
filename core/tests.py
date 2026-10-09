@@ -603,6 +603,63 @@ class ExcelUploadMessageTests(SimpleTestCase):
         self.assertEqual(created_bookings[0].net_amount, Decimal("-500.00"))
         coupon_bulk_create.assert_not_called()
 
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("1000.00"), Decimal("0"), None))
+    @patch("core.views.Ledger.objects.bulk_create")
+    @patch("core.views.Coupon.objects.bulk_create")
+    @patch("core.views.Coupon.objects.filter")
+    @patch("core.views.Booking.objects.select_related")
+    @patch("core.views.Booking.objects.select_for_update")
+    @patch("core.views.Booking.objects.bulk_create")
+    @patch("core.views.Booking.objects.exclude")
+    @patch("core.views.Customer.objects.in_bulk")
+    @patch("core.views.transaction.atomic", return_value=nullcontext())
+    @patch("openpyxl.load_workbook")
+    def test_excel_upload_skips_duplicate_ticket_numbers_keeping_first_occurrence(
+        self,
+        load_workbook,
+        _atomic,
+        in_bulk,
+        _exclude,
+        booking_bulk_create,
+        _select_for_update,
+        imported_bookings_query,
+        _existing_coupons_query,
+        coupon_bulk_create,
+        _ledger_bulk_create,
+        _calculate_discount,
+    ):
+        headers = [
+            "S PNR", "Client ID", "Ticket No", "Passenger Name", "Sector", "Booking Type",
+            "Travel Type", "Airline Name", "Airline Type", "Airline PNR",
+            "Net Amount", "Travel Start Date", "Travel End Date", "Booking Date", "Status",
+        ]
+        ticket_numbers = ["101", "102", "103", "104", "104", "104", "105", "106"]
+        rows = [
+            [
+                f"SPNR-{tkt}", "CL-1001", tkt, f"Passenger {tkt}", "DEL-BOM", "Web Booking",
+                "One Way", "Air India", "Economy Class", f"AI-{tkt}", "1000",
+                "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed",
+            ]
+            for tkt in ticket_numbers
+        ]
+        workbook = load_workbook.return_value
+        _exclude.return_value.values_list.return_value = []
+        workbook.active.__getitem__.return_value = [SimpleNamespace(value=h) for h in headers]
+        workbook.active.iter_rows.return_value = [tuple(r) for r in rows]
+
+        customer = Customer(id="CL-1001", name="Rohan Sharma")
+        in_bulk.return_value = {"CL-1001": customer}
+        _select_for_update.return_value.filter.return_value = []
+        imported_bookings_query.return_value.filter.return_value = []
+        _existing_coupons_query.return_value.values_list.return_value = []
+
+        request = self.make_request()
+        response = excel_upload(request)
+        self.assertEqual(response.status_code, 302)
+        created_bookings = booking_bulk_create.call_args.args[0]
+        imported_tickets = [b.ticket_no for b in created_bookings]
+        self.assertEqual(imported_tickets, ["101", "102", "103", "104", "105", "106"])
+
     def test_django_templates_include_message_context_processor(self):
         processors = settings.TEMPLATES[0]["OPTIONS"]["context_processors"]
         self.assertIn("django.contrib.messages.context_processors.messages", processors)

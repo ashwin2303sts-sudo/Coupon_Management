@@ -1327,6 +1327,7 @@ def excel_upload(request):
             rows_to_import = []
             row_errors = []
             invalid_row_numbers = set()
+            duplicate_skipped = 0
 
             for row_number, values in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
                 row = dict(zip(headers, values))
@@ -1398,8 +1399,7 @@ def excel_upload(request):
                 ticket_no = str(row["Ticket No"]).strip()
                 ticket_no_key = ticket_no.casefold()
                 if ticket_no_key in imported_ticket_nos:
-                    row_errors.append(f"Row {row_number}: Ticket No {ticket_no} is duplicated in this workbook.")
-                    invalid_row_numbers.add(row_number)
+                    duplicate_skipped += 1
                     continue
 
                 imported_ticket_nos.add(ticket_no_key)
@@ -1583,10 +1583,11 @@ def excel_upload(request):
                 if ledger_entries_to_create:
                     Ledger.objects.bulk_create(ledger_entries_to_create, batch_size=500)
 
+            skip_msg = f", {duplicate_skipped} duplicate row(s) skipped" if duplicate_skipped else ""
             messages.success(request, "Booking Added Successfully")
             messages.info(
                 request,
-                f"Excel upload complete: {added} booking(s) added and {updated} booking(s) updated; "
+                f"Excel upload complete: {added} booking(s) added and {updated} booking(s) updated{skip_msg}; "
                 f"{len(coupons_to_create)} coupon(s) earned, {released_count} released and "
                 f"{pending_count} pending until travel date.",
             )
@@ -1594,7 +1595,7 @@ def excel_upload(request):
             logger.exception("Excel booking upload failed")
             _add_excel_upload_failure(
                 request,
-                "The workbook could not be imported. Check that it is a valid .xlsx file, all Ticket No values are unique, and each passenger has a valid net amount.",
+                "The workbook could not be imported. Check that it is a valid .xlsx file and each passenger has a valid net amount.",
             )
             return redirect("excel_upload")
         finally:
