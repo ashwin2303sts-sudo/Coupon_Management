@@ -1418,12 +1418,16 @@ table thead th,
     padding-bottom: 90px !important;
 }
 
-.portal-table-card {
+.portal-table-card,
+.ledger-card {
     margin-bottom: 60px !important;
     overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
 }
 
-.portal-table-card .table-wrap {
+.portal-table-card .table-wrap,
+.ledger-card .ledger-table-wrap {
     overflow-y: visible !important;
     overflow-x: auto !important;
     max-height: none !important;
@@ -1432,7 +1436,28 @@ table thead th,
     flex: none !important;
 }
 
-.portal-table-card table {
-    width: 100%;
+.portal-table-card table,
+.ledger-table {
+    width: 100% !important;
+}
+
+.ledger-table {
+    min-width: 1050px !important;
+    table-layout: auto !important;
+}
+
+.ledger-table tbody tr {
+    height: auto !important;
+}
+
+.ledger-table td,
+.ledger-table th {
+    padding: 12px 10px !important;
+}
+
+.ledger-pagination {
+    margin-top: 16px !important;
+    padding-top: 16px !important;
+    border-top: 1px solid #edf2f7 !important;
 }
 
