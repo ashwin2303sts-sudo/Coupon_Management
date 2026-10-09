@@ -207,8 +207,9 @@ html, body {
         </table>
     </div>
 </div>
+{% endblock %}
 
-
+{% block modals %}
 {% if selected_booking %}
 <div class="modal-overlay show passenger-details-overlay" role="presentation">
     <section class="modal wide passenger-details-dialog" role="dialog" aria-modal="true" aria-labelledby="passengerDetailsTitle">

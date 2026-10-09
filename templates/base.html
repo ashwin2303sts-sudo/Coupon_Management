@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Coupon Management System</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}?v=1">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=65">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=68">
 </head>
 <body>
 <div class="app">
@@ -33,7 +33,7 @@
         </nav>
     </aside>
 
-    <main class="main {% if request.resolver_match.url_name == 'client_portal' %}client-portal-main{% endif %}">
+    <main class="main {% if request.resolver_match.url_name in 'client_portal,rules,dashboard' %}client-portal-main dashboard-main rules-main{% endif %}">
         <header class="topbar">
             <button class="menu-btn" onclick="toggleSidebar()">☰ Menu</button>
             <h1>{% block page_title %}Dashboard{% endblock %}</h1>
@@ -43,7 +43,7 @@
             </div>
         </header>
 
-        <section class="content {% if request.resolver_match.url_name == 'bookings' %}bookings-content{% endif %} {% if request.resolver_match.url_name == 'client_portal' %}client-portal-content{% endif %}">
+        <section class="content {% if request.resolver_match.url_name == 'bookings' %}bookings-content{% elif request.resolver_match.url_name == 'client_portal' %}client-portal-content{% elif request.resolver_match.url_name == 'rules' %}rules-content{% elif request.resolver_match.url_name == 'dashboard' %}dashboard-content{% endif %}">
             {% if messages and request.resolver_match.url_name == 'excel_upload' %}
                     <div class="excel-upload-toast">
                         {% for message in messages %}
@@ -77,6 +77,8 @@
         </div>
     </div>
 </div>
+
+{% block modals %}{% endblock %}
 
 {% if messages and request.resolver_match.url_name != 'excel_upload' %}
 <div class="toast-container">
@@ -127,6 +129,6 @@
 </script>
 {% endif %}
 
-<script src="{% static 'js/app.js' %}?v=44"></script>
+<script src="{% static 'js/app.js' %}?v=45"></script>
 </body>
 </html>

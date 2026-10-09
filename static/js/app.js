@@ -8,11 +8,27 @@ function closeLogout() {
     document.getElementById("logoutModal").classList.remove("show");
 }
 function openModal(id) {
-    document.getElementById(id).classList.add("show");
+    var modal = document.getElementById(id);
+    if (modal) {
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+        modal.classList.add("show");
+    }
 }
 function closeModal(id) {
-    document.getElementById(id).classList.remove("show");
+    var modal = document.getElementById(id);
+    if (modal) {
+        modal.classList.remove("show");
+    }
 }
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".modal-overlay").forEach(function(modal) {
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+    });
+});
 window.addEventListener("click", function(e) {
     document.querySelectorAll(".modal-overlay").forEach(function(modal) {
         if (e.target === modal && modal.id !== "logoutModal") {
