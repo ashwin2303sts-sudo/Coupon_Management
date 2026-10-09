@@ -462,8 +462,8 @@ nav {
     padding-top:12px;
     border-top:1px solid #e9edf4;
 }
-.confirm-btn {
-    background:#10b981 !important;
+.confirm-btn, .btn.confirm-btn, .btn.success-btn.confirm-btn {
+    background:#079d72 !important;
     color:#ffffff !important;
     border:none !important;
     font-weight:700 !important;
@@ -471,11 +471,12 @@ nav {
     font-size:13px !important;
     border-radius:6px !important;
     letter-spacing:0.5px !important;
-    cursor:pointer;
-    transition:background .15s ease;
+    cursor:pointer !important;
+    transition:background .15s ease !important;
 }
-.confirm-btn:hover {
-    background:#059669 !important;
+.confirm-btn:hover, .btn.confirm-btn:hover, .btn.success-btn.confirm-btn:hover {
+    background:#05825d !important;
+    color:#ffffff !important;
 }
 .btn.primary.full {
     width:100%;
