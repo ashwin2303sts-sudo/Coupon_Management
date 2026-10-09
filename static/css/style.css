@@ -589,10 +589,53 @@ td { padding:15px; border-bottom:1px solid #e3e7ee; font-size:13px; vertical-ali
 .upload-box { border:2px dashed #3d7fee; padding:25px; text-align:center; margin:18px 0; background:#fafcff; }
 .required { color:#d32b2b; font-weight:800; }
 .note { background:#fff2d6; color:#915800; padding:16px; border-radius:6px; margin-top:20px; }
-.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center; padding:20px; }
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(11,23,51,.65); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); z-index:1000; align-items:center; justify-content:center; padding:16px; overflow-y:auto; }
 .modal-overlay.show { display:flex; }
-.modal { background:white; width:400px; max-width:100%; border-radius:16px; padding:28px; box-shadow:0 20px 60px rgba(0,0,0,.25); }
-.modal.wide { width:850px; }
+.modal { background:#ffffff; width:440px; max-width:100%; max-height:calc(100vh - 32px); overflow-y:auto; border-radius:12px; padding:22px 24px; box-shadow:0 20px 60px rgba(8,25,58,.28), 0 0 0 1px rgba(220,229,241,.7); position:relative; box-sizing:border-box; }
+.modal.wide { width:960px; max-width:min(960px,calc(100vw - 32px)); }
+.customer-modal { width:560px; max-width:min(560px,calc(100vw - 32px)); padding:18px 22px 16px; }
+.customer-modal .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 14px; }
+.customer-modal label { font-size:11.5px; font-weight:700; margin-bottom:3px; color:#334155; }
+.customer-modal input { height:34px; padding:5px 10px; font-size:12.5px; margin-bottom:0; border-radius:6px; }
+
+/* Responsive Booking Modals for Computer, Laptop, Mobile, TV, Projector */
+.booking-modal { width:980px; max-width:min(980px,calc(100vw - 32px)); max-height:calc(100vh - 28px); padding:16px 22px 14px; border-radius:12px; display:flex; flex-direction:column; box-sizing:border-box; background:#ffffff; overflow-y:auto; box-shadow:0 24px 70px rgba(11,23,51,.3), 0 0 0 1px rgba(220,229,241,.75); }
+.modal-header-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid #e9edf4; flex-shrink:0; }
+.modal-header-bar h2 { margin:0; font-size:17px; font-weight:800; color:#17253d; letter-spacing:0.2px; text-align:left; }
+.modal-close-btn { border:none; background:transparent; color:#71809a; font-size:22px; line-height:1; width:28px; height:28px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; cursor:pointer; transition:background .15s, color .15s; padding:0; }
+.modal-close-btn:hover { background:#f0f4fa; color:#17253d; }
+.booking-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); column-gap:14px; row-gap:8px; align-items:start; }
+.booking-form-grid > div { min-width:0; display:flex; flex-direction:column; }
+.booking-form-grid label { font-size:11px; font-weight:700; color:#334155; margin:0 0 3px 0; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.booking-form-grid input, .booking-form-grid select { width:100%; height:33px; padding:4px 10px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; background:#ffffff; color:#0f172a; margin:0; outline:none; box-sizing:border-box; transition:border-color .15s, box-shadow .15s; }
+.booking-form-grid input:focus, .booking-form-grid select:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.14); }
+.booking-form-grid input:disabled { background:#f1f5f9; color:#64748b; cursor:not-allowed; }
+.booking-form-grid small { display:block; font-size:10px; color:#64748b; margin-top:2px; line-height:1.2; }
+.booking-form-grid .discount-hint { font-size:10px; color:#2563eb; font-weight:600; margin:2px 0 0; line-height:1.2; }
+.booking-modal .modal-actions { display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:12px; padding-top:10px; border-top:1px solid #e9edf4; flex-shrink:0; }
+.booking-modal .modal-actions .btn { padding:6px 16px; font-size:11.5px; font-weight:700; height:33px; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; }
+
+@media(max-width:880px) {
+    .booking-modal { width:min(680px,calc(100vw - 24px)); padding:14px 18px 12px; }
+    .booking-form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); column-gap:12px; row-gap:8px; }
+}
+@media(max-width:576px) {
+    .booking-modal, .customer-modal { width:calc(100vw - 16px); max-width:100%; padding:14px 14px 12px; max-height:calc(100vh - 16px); border-radius:10px; }
+    .booking-form-grid, .customer-modal .form-grid { grid-template-columns:1fr; row-gap:8px; }
+    .booking-form-grid input, .booking-form-grid select, .customer-modal input { height:36px; font-size:13px; }
+    .booking-modal .modal-actions, .customer-modal .modal-actions { flex-direction:column-reverse; align-items:stretch; gap:8px; margin-top:10px; }
+    .booking-modal .modal-actions .btn, .customer-modal .modal-actions .btn, .booking-detail-actions form, .booking-detail-actions form .btn { width:100%; height:38px; font-size:13px; }
+}
+@media(max-height:640px) {
+    .booking-modal { padding:10px 16px 8px; max-height:calc(100vh - 16px); }
+    .modal-header-bar { margin-bottom:6px; padding-bottom:4px; }
+    .modal-header-bar h2 { font-size:15px; }
+    .booking-form-grid { row-gap:5px; column-gap:10px; }
+    .booking-form-grid label { font-size:10px; margin-bottom:1px; }
+    .booking-form-grid input, .booking-form-grid select { height:28px; padding:2px 7px; font-size:11px; }
+    .booking-modal .modal-actions { margin-top:6px; padding-top:6px; }
+    .booking-modal .modal-actions .btn { height:28px; padding:4px 12px; font-size:11px; }
+}
 .passenger-details-overlay { z-index:110; padding:16px; }
 .passenger-details-dialog.modal.wide { width:min(1200px,calc(100vw - 32px)); max-width:100%; max-height:calc(100vh - 32px); overflow:auto; border-radius:10px; }
 .passenger-details-dialog .travel-history-table { width:100%; min-width:0; table-layout:fixed; }
