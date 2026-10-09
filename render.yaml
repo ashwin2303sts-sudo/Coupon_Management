@@ -2,9 +2,9 @@ services:
   - type: web
     name: coupon-management
     runtime: python
-    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
-    startCommand: python manage.py migrate && gunicorn coupon_system.wsgi:application --bind 0.0.0.0:$PORT
-    healthCheckPath: /
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate
+    startCommand: gunicorn coupon_system.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /login/
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.1
