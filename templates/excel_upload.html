@@ -15,13 +15,12 @@
 
         <a class="btn success-btn download-template-btn" href="{% url 'download_excel_template' %}">DOWNLOAD EXCEL TEMPLATE (.XLSX)</a>
 
-        <form method="post" enctype="multipart/form-data">{% csrf_token %}
+        <form method="post" enctype="multipart/form-data" id="excel_upload_form">{% csrf_token %}
             <div class="upload-box">
                 <label class="upload-label" for="excel_file">Choose File</label>
                 <input id="excel_file" type="file" name="excel_file" accept=".xlsx" required>
-                <div id="file_name" class="file-name">No file chosen</div>
             </div>
-            <button id="upload_submit" class="btn primary full" type="submit">PROCEED &amp; UPLOAD TO MYSQL</button>
+            <button id="upload_submit" class="btn primary full" type="submit">PROCEED</button>
         </form>
     </div>
 
@@ -63,24 +62,129 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="scanSummaryModal">
+    <div class="modal scan-summary-modal">
+        <div class="modal-header-bar">
+            <h2>Excel Scan Summary</h2>
+            <button type="button" class="modal-close-btn" onclick="closeModal('scanSummaryModal')" aria-label="Close" title="Close">&times;</button>
+        </div>
+        <div class="scan-summary-body">
+            <div class="scan-summary-row">
+                <span class="scan-label">TOTAL PASSENGERS</span>
+                <span class="scan-colon">:</span>
+                <span class="scan-val" id="scanTotalPassengers">00</span>
+            </div>
+            <div class="scan-summary-row">
+                <span class="scan-label">TOTAL CONFIRMED</span>
+                <span class="scan-colon">:</span>
+                <span class="scan-val status-confirmed" id="scanTotalConfirmed">00</span>
+            </div>
+            <div class="scan-summary-row">
+                <span class="scan-label">TOTAL CANCELLED</span>
+                <span class="scan-colon">:</span>
+                <span class="scan-val status-cancelled" id="scanTotalCancelled">00</span>
+            </div>
+            <div class="scan-summary-row">
+                <span class="scan-label">TOTAL RESCHEDULED</span>
+                <span class="scan-colon">:</span>
+                <span class="scan-val status-rescheduled" id="scanTotalRescheduled">00</span>
+            </div>
+            <div class="scan-summary-row total-amount-row">
+                <span class="scan-label">TOTAL NET AMOUNT</span>
+                <span class="scan-colon">:</span>
+                <span class="scan-val amount-val" id="scanTotalNetAmount">₹ 0.00</span>
+            </div>
+        </div>
+        <div class="modal-actions scan-modal-actions">
+            <button type="button" class="btn secondary" onclick="closeModal('scanSummaryModal')">CANCEL</button>
+            <button type="button" class="btn confirm-btn" id="confirmUploadBtn">CONFIRM</button>
+        </div>
+    </div>
+</div>
+
 <script>
+    const excelForm = document.getElementById('excel_upload_form');
     const excelInput = document.getElementById('excel_file');
     const submitButton = document.getElementById('upload_submit');
-    const fileNameBox = document.getElementById('file_name');
+    const confirmBtn = document.getElementById('confirmUploadBtn');
+    let isConfirmed = false;
 
     function syncUploadState() {
         const hasFile = !!(excelInput && excelInput.files && excelInput.files.length);
         if (submitButton) {
             submitButton.disabled = !hasFile;
         }
-        if (fileNameBox) {
-            fileNameBox.textContent = hasFile ? excelInput.files[0].name : 'No file chosen';
-        }
     }
 
     if (excelInput) {
         excelInput.addEventListener('change', syncUploadState);
         syncUploadState();
+    }
+
+    if (excelForm) {
+        excelForm.addEventListener('submit', function(e) {
+            if (isConfirmed) {
+                return;
+            }
+            e.preventDefault();
+
+            if (!excelInput.files || !excelInput.files.length) {
+                alert('Please choose an Excel (.xlsx) file first.');
+                return;
+            }
+
+            const originalText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = 'SCANNING EXCEL...';
+
+            const formData = new FormData(excelForm);
+            formData.append('action', 'scan');
+
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json().then(data => ({ status: res.status, ok: res.ok, data })))
+            .then(({ ok, data }) => {
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
+
+                if (!ok || !data.success) {
+                    alert(data.error || 'The workbook could not be scanned. Please check file format.');
+                    return;
+                }
+
+                const pad = n => String(n).padStart(2, '0');
+                document.getElementById('scanTotalPassengers').textContent = pad(data.total_passengers);
+                document.getElementById('scanTotalConfirmed').textContent = pad(data.total_confirmed);
+                document.getElementById('scanTotalCancelled').textContent = pad(data.total_cancelled);
+                document.getElementById('scanTotalRescheduled').textContent = pad(data.total_rescheduled);
+                document.getElementById('scanTotalNetAmount').textContent = data.total_net_amount;
+
+                openModal('scanSummaryModal');
+            })
+            .catch(err => {
+                submitButton.disabled = false;
+                submitButton.textContent = originalText;
+                console.error(err);
+                alert('Failed to scan file. Please check connection and file format.');
+            });
+        });
+    }
+
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', function() {
+            closeModal('scanSummaryModal');
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = 'ADDING BOOKINGS...';
+            }
+            isConfirmed = true;
+            excelForm.submit();
+        });
     }
 </script>
 {% endblock %}

@@ -7,7 +7,7 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.paginator import Paginator
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 from django.db import transaction
@@ -1269,6 +1269,7 @@ def _canonical_booking_status(value):
     return {
         "confirmed": "Confirmed",
         "cancelled": "Cancelled",
+        "rescheduled": "Rescheduled",
     }.get(status)
 
 
@@ -1281,8 +1282,13 @@ def _add_excel_upload_failure(request, details=None):
 @admin_required
 def excel_upload(request):
     if request.method == "POST":
+        action = request.POST.get("action", "").strip().lower()
+        is_scan = (action == "scan") or (request.headers.get("x-requested-with") == "XMLHttpRequest" and action != "confirm")
+
         upload = request.FILES.get("excel_file")
         if not upload:
+            if is_scan:
+                return JsonResponse({"success": False, "error": "Choose an .xlsx workbook and try again."}, status=400)
             _add_excel_upload_failure(request, "Choose an .xlsx workbook and try again.")
             return redirect("excel_upload")
 
@@ -1313,10 +1319,10 @@ def excel_upload(request):
             ]
             missing = set(required_headers) - set(headers)
             if missing:
-                _add_excel_upload_failure(
-                    request,
-                    "Missing required Excel columns: " + ", ".join(sorted(missing)) + ".",
-                )
+                err_msg = "Missing required Excel columns: " + ", ".join(sorted(missing)) + "."
+                if is_scan:
+                    return JsonResponse({"success": False, "error": err_msg}, status=400)
+                _add_excel_upload_failure(request, err_msg)
                 return redirect("excel_upload")
 
             existing_ticket_nos = {
@@ -1429,8 +1435,26 @@ def excel_upload(request):
                 )
                 if len(row_errors) > 5:
                     details += f"; and {len(row_errors) - 5} more row error(s)."
+                if is_scan:
+                    return JsonResponse({"success": False, "error": details}, status=400)
                 _add_excel_upload_failure(request, details)
                 return redirect("excel_upload")
+
+            if is_scan:
+                total_passengers = len(rows_to_import)
+                total_confirmed = sum(1 for r in rows_to_import if r["status"] == "Confirmed")
+                total_cancelled = sum(1 for r in rows_to_import if r["status"] == "Cancelled")
+                total_rescheduled = sum(1 for r in rows_to_import if r["status"] == "Rescheduled")
+                total_net_amount = sum((r["base_amount"] for r in rows_to_import), Decimal("0"))
+                return JsonResponse({
+                    "success": True,
+                    "total_passengers": total_passengers,
+                    "total_confirmed": total_confirmed,
+                    "total_cancelled": total_cancelled,
+                    "total_rescheduled": total_rescheduled,
+                    "total_net_amount": f"₹ {total_net_amount:,.2f}",
+                    "duplicate_skipped": duplicate_skipped,
+                })
 
             with transaction.atomic():
                 customers_by_id = Customer.objects.in_bulk({row["client_id"] for row in rows_to_import})
@@ -1593,10 +1617,10 @@ def excel_upload(request):
             )
         except Exception:
             logger.exception("Excel booking upload failed")
-            _add_excel_upload_failure(
-                request,
-                "The workbook could not be imported. Check that it is a valid .xlsx file and each passenger has a valid net amount.",
-            )
+            err_msg = "The workbook could not be imported. Check that it is a valid .xlsx file and each passenger has a valid net amount."
+            if is_scan:
+                return JsonResponse({"success": False, "error": err_msg}, status=400)
+            _add_excel_upload_failure(request, err_msg)
             return redirect("excel_upload")
         finally:
             if workbook is not None:

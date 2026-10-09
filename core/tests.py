@@ -118,10 +118,13 @@ class ExcelUploadMessageTests(SimpleTestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
-    def make_request(self, file_content=b"workbook"):
+    def make_request(self, file_content=b"workbook", data=None):
+        payload = {"excel_file": SimpleUploadedFile("bookings.xlsx", file_content)}
+        if data:
+            payload.update(data)
         request = self.factory.post(
             "/excel-upload/",
-            {"excel_file": SimpleUploadedFile("bookings.xlsx", file_content)},
+            payload,
         )
         request.session = {"user_id": "admin"}
         request._messages = FallbackStorage(request)
@@ -659,6 +662,42 @@ class ExcelUploadMessageTests(SimpleTestCase):
         created_bookings = booking_bulk_create.call_args.args[0]
         imported_tickets = [b.ticket_no for b in created_bookings]
         self.assertEqual(imported_tickets, ["101", "102", "103", "104", "105", "106"])
+
+    @patch("core.views.Booking.objects.exclude")
+    @patch("openpyxl.load_workbook")
+    def test_excel_upload_scan_action_returns_summary_json(
+        self,
+        load_workbook,
+        _exclude,
+    ):
+        headers = [
+            "S PNR", "Client ID", "Ticket No", "Passenger Name", "Sector", "Booking Type",
+            "Travel Type", "Airline Name", "Airline Type", "Airline PNR",
+            "Net Amount", "Travel Start Date", "Travel End Date", "Booking Date", "Status",
+        ]
+        rows = [
+            ["SPNR-1", "CL-1", "TKT-1", "Pax 1", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P1", "1500.00", "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed"],
+            ["SPNR-2", "CL-1", "TKT-2", "Pax 2", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P2", "-500.00", "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed"],
+            ["SPNR-3", "CL-1", "TKT-3", "Pax 3", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P3", "2000.00", "2026-10-20", "2026-10-20", "2026-10-09", "Rescheduled"],
+            ["SPNR-4", "CL-1", "TKT-3", "Pax 3 Dup", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P4", "2000.00", "2026-10-20", "2026-10-20", "2026-10-09", "Rescheduled"],
+        ]
+        workbook = load_workbook.return_value
+        _exclude.return_value.values_list.return_value = []
+        workbook.active.__getitem__.return_value = [SimpleNamespace(value=h) for h in headers]
+        workbook.active.iter_rows.return_value = [tuple(r) for r in rows]
+
+        request = self.make_request(data={"action": "scan"})
+        response = excel_upload(request)
+        self.assertEqual(response.status_code, 200)
+        import json
+        payload = json.loads(response.content)
+        self.assertTrue(payload["success"])
+        self.assertEqual(payload["total_passengers"], 3)
+        self.assertEqual(payload["total_confirmed"], 1)
+        self.assertEqual(payload["total_cancelled"], 1)
+        self.assertEqual(payload["total_rescheduled"], 1)
+        self.assertEqual(payload["duplicate_skipped"], 1)
+        self.assertEqual(payload["total_net_amount"], "₹ 3,000.00")
 
     def test_django_templates_include_message_context_processor(self):
         processors = settings.TEMPLATES[0]["OPTIONS"]["context_processors"]

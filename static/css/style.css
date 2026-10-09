@@ -381,27 +381,101 @@ nav {
     min-width:120px;
 }
 .upload-box input[type="file"] {
-    width:auto;
-    max-width:180px;
+    flex:1;
+    width:100%;
+    max-width:none;
     margin:0;
-    padding:0;
-    border:0;
-    background:transparent;
+    padding:8px 12px;
+    border:1px dashed #cbd5e1;
+    border-radius:8px;
+    background:#ffffff;
     box-shadow:none;
-    color:#2d5ea8;
+    color:#1e293b;
+    font-size:13px;
+    cursor:pointer;
 }
 .file-name {
-    flex:1;
-    border:1px solid #dfe7f1;
-    border-radius:8px;
-    background:#fff;
-    padding:10px 12px;
-    color:#75829a;
-    font-size:13px;
-    text-align:left;
-    min-height:42px;
+    display:none;
+}
+.scan-summary-modal {
+    width:480px;
+    max-width:min(480px,calc(100vw - 32px));
+    padding:22px 24px;
+    border-radius:12px;
+}
+.scan-summary-body {
+    display:flex;
+    flex-direction:column;
+    gap:11px;
+    margin:14px 0 18px;
+    background:#f8fafc;
+    border:1px solid #e2e8f0;
+    border-radius:10px;
+    padding:16px 18px;
+}
+.scan-summary-row {
     display:flex;
     align-items:center;
+    font-size:13.5px;
+    font-weight:600;
+    color:#334155;
+}
+.scan-summary-row .scan-label {
+    width:185px;
+    letter-spacing:0.3px;
+    font-weight:700;
+    color:#1e293b;
+}
+.scan-summary-row .scan-colon {
+    margin-right:14px;
+    color:#64748b;
+    font-weight:700;
+}
+.scan-summary-row .scan-val {
+    font-weight:800;
+    font-size:14.5px;
+    color:#0f172a;
+}
+.scan-summary-row.total-amount-row {
+    border-top:1px dashed #cbd5e1;
+    padding-top:12px;
+    margin-top:4px;
+}
+.scan-summary-row .amount-val {
+    font-size:15px;
+    color:#0284c7;
+}
+.scan-summary-row .status-confirmed {
+    color:#059669;
+}
+.scan-summary-row .status-cancelled {
+    color:#dc2626;
+}
+.scan-summary-row .status-rescheduled {
+    color:#d97706;
+}
+.scan-modal-actions {
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:12px;
+    padding-top:12px;
+    border-top:1px solid #e9edf4;
+}
+.confirm-btn {
+    background:#10b981 !important;
+    color:#ffffff !important;
+    border:none !important;
+    font-weight:700 !important;
+    padding:9px 24px !important;
+    font-size:13px !important;
+    border-radius:6px !important;
+    letter-spacing:0.5px !important;
+    cursor:pointer;
+    transition:background .15s ease;
+}
+.confirm-btn:hover {
+    background:#059669 !important;
 }
 .btn.primary.full {
     width:100%;
