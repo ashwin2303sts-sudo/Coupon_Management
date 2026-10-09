@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Coupon Management System</title>
     <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}?v=1">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=59">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=60">
 </head>
 <body>
 <div class="app">
@@ -33,7 +33,7 @@
         </nav>
     </aside>
 
-    <main class="main">
+    <main class="main {% if request.resolver_match.url_name == 'client_portal' %}client-portal-main{% endif %}">
         <header class="topbar">
             <button class="menu-btn" onclick="toggleSidebar()">☰ Menu</button>
             <h1>{% block page_title %}Dashboard{% endblock %}</h1>
@@ -43,7 +43,7 @@
             </div>
         </header>
 
-        <section class="content {% if request.resolver_match.url_name == 'bookings' %}bookings-content{% endif %}">
+        <section class="content {% if request.resolver_match.url_name == 'bookings' %}bookings-content{% endif %} {% if request.resolver_match.url_name == 'client_portal' %}client-portal-content{% endif %}">
             {% if messages and request.resolver_match.url_name == 'excel_upload' %}
                     <div class="excel-upload-toast">
                         {% for message in messages %}

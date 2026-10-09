@@ -1363,3 +1363,72 @@ table thead th,
     margin: 0;
     padding: 11px 13px;
 }
+
+/* ============================================================
+   CLIENT PORTAL: Outer Global Scrollbar
+   Enables smooth vertical scrolling on the outside (.main container)
+   so the banner, stats, and the full Client Details table
+   are always completely visible without bottom clipping.
+   ============================================================ */
+.main.client-portal-main {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: #8492a6 #e8edf3;
+}
+
+.main.client-portal-main::-webkit-scrollbar {
+    width: 10px;
+}
+
+.main.client-portal-main::-webkit-scrollbar-track {
+    background: #e8edf3;
+}
+
+.main.client-portal-main::-webkit-scrollbar-thumb {
+    background: #8492a6;
+    border-radius: 5px;
+}
+
+.main.client-portal-main::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+.main.client-portal-main .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.main.client-portal-main .content,
+.content.client-portal-content {
+    height: auto !important;
+    min-height: calc(100vh - 78px);
+    max-height: none !important;
+    overflow: visible !important;
+    display: block !important;
+    padding-bottom: 60px !important;
+}
+
+.portal-table-card {
+    margin-bottom: 40px !important;
+    overflow: visible !important;
+}
+
+.portal-table-card .table-wrap {
+    overflow-y: visible !important;
+    overflow-x: auto !important;
+    max-height: none !important;
+    min-height: auto !important;
+    flex: none !important;
+}
+
+.portal-table-card table {
+    width: 100%;
+}
+
