@@ -111,6 +111,8 @@ def _find_matching_rule(airline, airline_type, base_amount=None):
 
 def calculate_discounted_net(base_amount, airline, airline_type):
     base = decimal_value(base_amount)
+    if base < 0:
+        return base.quantize(decimal_value("0.01")), decimal_value(0), None
     rule = _find_matching_rule(airline, airline_type, base)
     percentage = decimal_value(rule.get("percentage")) if rule else decimal_value(0)
     discount = (base * percentage) / decimal_value(100)
@@ -570,7 +572,7 @@ def bookings(request):
         booking.setdefault("travel_type", "")
         booking.setdefault("airline", "")
         booking.setdefault("fare_type", "ANY CLASS")
-        booking["status"] = "Cancelled" if str(booking.get("status", "")).strip().lower() == "cancelled" else "Confirmed"
+        booking["status"] = "Cancelled" if (str(booking.get("status", "")).strip().lower() == "cancelled" or money(booking.get("net_amount", 0)) < 0) else "Confirmed"
     if q:
         searchable_fields = ("s_pnr", "ticket_no", "passenger_name", "airline", "sector", "status")
         data = [
@@ -652,16 +654,30 @@ def add_booking(request):
     if missing or client_record is None:
         messages.error(request, "Please fill all required booking fields: " + ", ".join(missing or ["valid Client ID"]) + ".")
         return redirect("bookings")
-    status_val = request.POST.get("status", "Confirmed").strip()
-    if status_val not in dict(Booking.STATUS_CHOICES):
-        messages.error(request, "Booking Status must be Confirmed or Cancelled.")
+
+    try:
+        raw_net = str(required_fields["Net Amount"]).replace(",", "").replace("₹", "").strip()
+        parsed_net = Decimal(raw_net)
+        if not parsed_net.is_finite():
+            raise InvalidOperation
+    except (InvalidOperation, TypeError, ValueError):
+        messages.error(request, "Net Amount must be a valid number.")
         return redirect("bookings")
+
+    # If Net Amount is negative, status is automatically Cancelled; if positive, Confirmed (or user-selected)
+    if parsed_net < 0:
+        status_val = "Cancelled"
+    else:
+        status_val = request.POST.get("status", "Confirmed").strip() or "Confirmed"
+        if status_val not in dict(Booking.STATUS_CHOICES):
+            status_val = "Confirmed"
+
     if Booking.objects.filter(ticket_no=ticket_no).exists():
         messages.error(request, "This Ticket No already exists.")
         return redirect("bookings")
 
     final_net, discount_pct, matched_rule = calculate_discounted_net(
-        required_fields["Net Amount"], required_fields["Airline Name"], required_fields["Airline Type"]
+        parsed_net, required_fields["Airline Name"], required_fields["Airline Type"]
     )
     Booking.objects.create(
         pnr=required_fields["S PNR"],
@@ -675,7 +691,7 @@ def add_booking(request):
         fare_type=required_fields["Airline Type"],
         airline_pnr=required_fields["Airline PNR"],
         net_amount=decimal_value(final_net),
-        base_amount=decimal_value(required_fields["Net Amount"]),
+        base_amount=decimal_value(parsed_net),
         discount_percentage=decimal_value(discount_pct),
         travel_date=date_value(required_fields["Travel Start Date"]),
         end_date=date_value(required_fields["Travel End Date"]),
@@ -684,7 +700,7 @@ def add_booking(request):
         is_auto=False,
         is_manual=True,
     )
-    messages.success(request, f"Booking added successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
+    messages.success(request, f"Booking added successfully (Status: {status_val}). Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
 
 
@@ -717,10 +733,26 @@ def edit_booking(request):
     if missing or client_record is None:
         messages.error(request, "All booking fields are compulsory. Please fill every field.")
         return redirect("bookings")
+    try:
+        raw_net = str(values["net_amount"]).replace(",", "").replace("₹", "").strip()
+        parsed_net = Decimal(raw_net)
+        if not parsed_net.is_finite():
+            raise InvalidOperation
+    except (InvalidOperation, TypeError, ValueError):
+        messages.error(request, "Net Amount must be a valid number.")
+        return redirect("bookings")
+
+    if parsed_net < 0:
+        status_val = "Cancelled"
+    else:
+        status_val = request.POST.get("status", "Confirmed").strip() or "Confirmed"
+        if status_val not in dict(Booking.STATUS_CHOICES):
+            status_val = "Confirmed"
+
     if Booking.objects.filter(ticket_no=ticket_no).exclude(pk=booking.pk).exists():
         messages.error(request, "This Ticket No already exists.")
         return redirect("bookings")
-    final_net, discount_pct, matched_rule = calculate_discounted_net(values["net_amount"], values["airline"], values["fare_type"])
+    final_net, discount_pct, matched_rule = calculate_discounted_net(parsed_net, values["airline"], values["fare_type"])
     booking.client = client_record
     booking.ticket_no = ticket_no
     booking.passenger_name = values["passenger_name"]
@@ -731,22 +763,18 @@ def edit_booking(request):
     booking.fare_type = values["fare_type"]
     booking.airline_pnr = values["airline_pnr"]
     booking.net_amount = decimal_value(final_net)
-    booking.base_amount = decimal_value(values["net_amount"])
+    booking.base_amount = decimal_value(parsed_net)
     booking.discount_percentage = decimal_value(discount_pct)
     booking.travel_date = date_value(values["travel_date"])
     booking.end_date = date_value(values["end_date"])
     booking.booked_date = date_value(values["booked_date"])
-    status_val = request.POST.get("status", "").strip()
-    if status_val not in dict(Booking.STATUS_CHOICES):
-        messages.error(request, "Booking Status must be Confirmed or Cancelled.")
-        return redirect("bookings")
-    if status_val == "Cancelled" and booking.status != "Cancelled":
+    if status_val == "Cancelled":
         with transaction.atomic():
             _cancel_booking_and_revoke_coupon(booking)
     else:
         booking.status = status_val
         booking.save()
-    messages.success(request, f"Booking {booking.pnr} updated successfully. Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
+    messages.success(request, f"Booking {booking.pnr} updated successfully (Status: {status_val}). Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
     return redirect("bookings")
 
 
@@ -1307,22 +1335,23 @@ def excel_upload(request):
 
                 spnr = str(row.get("S PNR") or "").strip()
 
-                missing_values = [
-                    header for header in required_headers
-                    if row.get(header) is None or not str(row.get(header)).strip()
-                ]
-                if missing_values:
-                    row_errors.append(f"Row {row_number}: missing " + ", ".join(missing_values))
+                try:
+                    raw_amount = str(row.get("Net Amount") or "").strip().replace(",", "").replace("₹", "")
+                    base_amount = Decimal(raw_amount)
+                    if not base_amount.is_finite():
+                        raise InvalidOperation
+                except (InvalidOperation, TypeError, ValueError):
+                    row_errors.append(f"Row {row_number}: Net Amount must be a valid number")
                     invalid_row_numbers.add(row_number)
                     continue
 
-                try:
-                    raw_amount = str(row["Net Amount"]).strip().replace(",", "").replace("₹", "")
-                    base_amount = Decimal(raw_amount)
-                    if not base_amount.is_finite() or base_amount < 0:
-                        raise InvalidOperation
-                except (InvalidOperation, TypeError, ValueError):
-                    row_errors.append(f"Row {row_number}: Net Amount must be a number greater than or equal to 0")
+                missing_values = [
+                    header for header in required_headers
+                    if (row.get(header) is None or not str(row.get(header)).strip())
+                    and not (header == "Status" and base_amount < 0)
+                ]
+                if missing_values:
+                    row_errors.append(f"Row {row_number}: missing " + ", ".join(missing_values))
                     invalid_row_numbers.add(row_number)
                     continue
 
@@ -1348,13 +1377,23 @@ def excel_upload(request):
                     invalid_row_numbers.add(row_number)
                     continue
 
-                booking_status = _canonical_booking_status(row.get("Status"))
-                if booking_status is None:
-                    row_errors.append(
-                        f"Row {row_number}: Status must be Confirmed or Cancelled."
-                    )
-                    invalid_row_numbers.add(row_number)
-                    continue
+                # Auto-status:
+                # If Net Amount < 0 -> automatically "Cancelled"
+                # If Net Amount >= 0 -> "Confirmed" or valid status from Excel
+                if base_amount < 0:
+                    booking_status = "Cancelled"
+                else:
+                    raw_status = row.get("Status")
+                    if raw_status is not None and str(raw_status).strip():
+                        booking_status = _canonical_booking_status(raw_status)
+                        if booking_status is None:
+                            row_errors.append(
+                                f"Row {row_number}: Status must be Confirmed or Cancelled."
+                            )
+                            invalid_row_numbers.add(row_number)
+                            continue
+                    else:
+                        booking_status = "Confirmed"
 
                 ticket_no = str(row["Ticket No"]).strip()
                 ticket_no_key = ticket_no.casefold()
@@ -1489,7 +1528,7 @@ def excel_upload(request):
                 released_count = 0
                 pending_count = 0
                 for booking in imported_bookings:
-                    if booking.status == "Cancelled":
+                    if booking.status == "Cancelled" or decimal_value(booking.net_amount) <= 0:
                         continue
                     if booking.pk in bookings_with_coupons:
                         continue
@@ -1498,9 +1537,7 @@ def excel_upload(request):
                         Decimal("0.01")
                     )
                     if points <= 0:
-                        raise ValueError(
-                            f"Ticket No {booking.ticket_no} has no positive net amount, so a coupon cannot be created."
-                        )
+                        continue
 
                     available_now = bool(booking.travel_date and now_date > booking.travel_date)
                     status = "AVAILABLE" if available_now else "PENDING"
@@ -1541,8 +1578,10 @@ def excel_upload(request):
                     else:
                         pending_count += 1
 
-                Coupon.objects.bulk_create(coupons_to_create, batch_size=500)
-                Ledger.objects.bulk_create(ledger_entries_to_create, batch_size=500)
+                if coupons_to_create:
+                    Coupon.objects.bulk_create(coupons_to_create, batch_size=500)
+                if ledger_entries_to_create:
+                    Ledger.objects.bulk_create(ledger_entries_to_create, batch_size=500)
 
             messages.success(request, "Booking Added Successfully")
             messages.info(
@@ -1555,7 +1594,7 @@ def excel_upload(request):
             logger.exception("Excel booking upload failed")
             _add_excel_upload_failure(
                 request,
-                "The workbook could not be imported. Check that it is a valid .xlsx file, all Ticket No values are unique, and each passenger has a positive net amount.",
+                "The workbook could not be imported. Check that it is a valid .xlsx file, all Ticket No values are unique, and each passenger has a valid net amount.",
             )
             return redirect("excel_upload")
         finally:

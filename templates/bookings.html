@@ -4,7 +4,7 @@
 <div class="card booking-page-card">
 <div class="card-head"><h2>Passenger Bookings</h2><div class="head-actions"><form><input name="q" value="{{ search }}" placeholder="Search S PNR, Ticket No, Passenger Name, Airline, Sector"><button class="btn secondary">SEARCH</button></form><a class="btn success-btn" href="{% url 'excel_upload' %}">BULK EXCEL UPLOAD</a><button class="btn secondary" onclick="openModal('customerAddModal')" type="button">+ ADD CUSTOMER</button><button class="btn primary" onclick="openModal('bookingAddModal')" type="button">+ ADD BOOKING</button></div></div>
 <div class="table-wrap booking-table-wrap"><table id="bookingTable"><thead><tr><th>S PNR</th><th>TICKET NO</th><th>PASSENGER NAME</th><th>CLIENT ID</th><th>SECTOR</th><th>BOOKING TYPE</th><th>TRAVEL TYPE</th><th>AIRLINE</th><th>AIRLINE TYPE</th><th>AIRLINE PNR</th><th class="col-status">STATUS</th><th>NET AMOUNT</th><th>TRAVEL START</th><th>TRAVEL END</th><th>BOOKING DATE</th></tr></thead>
-<tbody>{% for b in bookings %}<tr><td><b>{{ b.s_pnr }}</b></td><td>{{ b.ticket_no|default:"—" }}</td><td><button class="passenger-link" type="button" onclick="openEditBooking({booking_id:'{{ b.booking_id|escapejs }}',s_pnr:'{{ b.s_pnr|escapejs }}',ticket_no:'{{ b.ticket_no|default:""|escapejs }}',passenger_name:'{{ b.passenger_name|escapejs }}',client_id:'{{ b.client_id|escapejs }}',sector:'{{ b.sector|escapejs }}',booking_type:'{{ b.booking_type|escapejs }}',travel_type:'{{ b.travel_type|escapejs }}',airline:'{{ b.airline|escapejs }}',fare_type:'{{ b.fare_type|escapejs }}',airline_pnr:'{{ b.airline_pnr|escapejs }}',net_amount:'{{ b.net_amount|escapejs }}',base_amount:'{{ b.base_amount|default:b.net_amount|escapejs }}',travel_date:'{{ b.travel_date|escapejs }}',end_date:'{{ b.end_date|escapejs }}',booked_date:'{{ b.booked_date|escapejs }}',status:'{{ b.status|escapejs }}'})">{{ b.passenger_name|default:"—" }}</button></td><td>{{ b.client_id }}</td><td>{{ b.sector }}</td><td>{{ b.booking_type }}</td><td>{{ b.travel_type }}</td><td>{{ b.airline }}</td><td>{{ b.fare_type }}</td><td>{{ b.airline_pnr }}</td><td class="col-status">{% if b.status == 'Cancelled' %}<span class="status-pill pill-cancelled">Cancelled</span>{% else %}<span class="status-pill pill-completed">Confirmed</span>{% endif %}</td><td class="money">₹{{ b.net_amount|floatformat:2 }}</td><td>{{ b.travel_date }}</td><td>{{ b.end_date }}</td><td>{{ b.booked_date }}</td></tr>{% empty %}<tr><td colspan="15">No bookings found.</td></tr>{% endfor %}</tbody></table></div>
+<tbody>{% for b in bookings %}<tr><td><b>{{ b.s_pnr }}</b></td><td>{{ b.ticket_no|default:"—" }}</td><td><button class="passenger-link" type="button" onclick="openEditBooking({booking_id:'{{ b.booking_id|escapejs }}',s_pnr:'{{ b.s_pnr|escapejs }}',ticket_no:'{{ b.ticket_no|default:""|escapejs }}',passenger_name:'{{ b.passenger_name|escapejs }}',client_id:'{{ b.client_id|escapejs }}',sector:'{{ b.sector|escapejs }}',booking_type:'{{ b.booking_type|escapejs }}',travel_type:'{{ b.travel_type|escapejs }}',airline:'{{ b.airline|escapejs }}',fare_type:'{{ b.fare_type|escapejs }}',airline_pnr:'{{ b.airline_pnr|escapejs }}',net_amount:'{{ b.net_amount|escapejs }}',base_amount:'{{ b.base_amount|default:b.net_amount|escapejs }}',travel_date:'{{ b.travel_date|escapejs }}',end_date:'{{ b.end_date|escapejs }}',booked_date:'{{ b.booked_date|escapejs }}',status:'{{ b.status|escapejs }}'})">{{ b.passenger_name|default:"—" }}</button></td><td>{{ b.client_id }}</td><td>{{ b.sector }}</td><td>{{ b.booking_type }}</td><td>{{ b.travel_type }}</td><td>{{ b.airline }}</td><td>{{ b.fare_type }}</td><td>{{ b.airline_pnr }}</td><td class="col-status">{% if b.status == 'Cancelled' %}<span class="status-pill pill-cancelled">Cancelled</span>{% else %}<span class="status-pill pill-completed">Confirmed</span>{% endif %}</td><td class="money {% if b.net_amount < 0 %}amount-red{% endif %}">{% if b.net_amount < 0 %}-₹{{ b.net_amount|stringformat:".2f"|slice:"1:" }}{% else %}₹{{ b.net_amount|floatformat:2 }}{% endif %}</td><td>{{ b.travel_date }}</td><td>{{ b.end_date }}</td><td>{{ b.booked_date }}</td></tr>{% empty %}<tr><td colspan="15">No bookings found.</td></tr>{% endfor %}</tbody></table></div>
 </div>
 
 <div class="modal-overlay" id="customerAddModal"><div class="modal customer-modal"><div class="modal-header-bar"><h2>Add Customer</h2><button type="button" class="modal-close-btn" onclick="closeModal('customerAddModal')" aria-label="Close" title="Close">&times;</button></div><form method="post" action="{% url 'add_customer' %}">{% csrf_token %}<input type="hidden" name="return_to" value="bookings"><div class="form-grid"><div><label class="required-label">Client ID *</label><input name="id" placeholder="Enter Client ID" required></div><div><label class="required-label">Name *</label><input name="name" placeholder="Client Name" required></div><div><label class="required-label">Email *</label><input type="email" name="email" placeholder="Enter Email" required></div><div><label class="required-label">Phone *</label><input type="tel" name="phone" placeholder="Enter Phone Number" required></div></div><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal('customerAddModal')">CANCEL</button><button class="btn primary">ADD CUSTOMER</button></div></form></div></div>
@@ -21,11 +21,11 @@
 <div><label class="required-label">Airline Name *</label><input name="airline" list="airlineList" placeholder="Type or select Airline Name" autocomplete="off" required><datalist id="airlineList">{% for x in airlines %}<option value="{{ x }}"></option>{% endfor %}</datalist></div>
 <div><label class="required-label">Airline Type *</label><select name="fare_type" required>{% for x in airline_types %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select></div>
 <div><label class="required-label">Airline PNR *</label><input name="airline_pnr" placeholder="Enter Airline PNR" required></div>
-<div><label class="required-label">Net Amount *</label><input id="addAmount" type="number" step="0.01" min="0" name="net_amount" placeholder="Enter Base Net Amount" required><small class="discount-hint" id="addDiscountHint">Final amount will be calculated from Rules.</small></div>
+<div><label class="required-label">Net Amount *</label><input id="addAmount" type="number" step="0.01" name="net_amount" placeholder="Enter Base Net Amount" required><small class="discount-hint" id="addDiscountHint">Final amount will be calculated from Rules.</small></div>
 <div><label class="required-label">Travel Start Date *</label><input type="date" name="travel_date" required></div>
 <div><label class="required-label">Travel End Date *</label><input type="date" name="end_date" required></div>
 <div><label class="required-label">Booking Date *</label><input type="date" name="booked_date" value="{{ today }}" required></div>
-<div><label class="required-label">Booking Status *</label><select name="status" required><option value="Confirmed" selected>Confirmed</option><option value="Cancelled">Cancelled</option></select></div>
+<div><label class="required-label">Booking Status *</label><select name="status" id="addStatus" required><option value="Confirmed" selected>Confirmed</option><option value="Cancelled">Cancelled</option></select></div>
 </div><div class="modal-actions"><button type="button" class="btn secondary" onclick="closeModal('bookingAddModal')">CANCEL</button><button class="btn primary">ADD BOOKING</button></div></form></div></div>
 
 <div class="modal-overlay" id="bookingEditModal"><div class="modal wide booking-modal"><div class="modal-header-bar"><h2>Passenger Booking Details</h2><button type="button" class="modal-close-btn" onclick="closeModal('bookingEditModal')" aria-label="Close" title="Close">&times;</button></div><form method="post" action="{% url 'edit_booking' %}" id="bookingEditForm">{% csrf_token %}<input type="hidden" id="editSpnr" name="booking_id"><div class="booking-form-grid">
@@ -39,7 +39,7 @@
 <div><label class="required-label">Airline Name *</label><input id="editAirline" name="airline" list="airlineList" placeholder="Type or select Airline Name" required></div>
 <div><label class="required-label">Airline Type *</label><select id="editFareType" name="fare_type" required>{% for x in airline_types %}<option>{{ x }}</option>{% endfor %}</select></div>
 <div><label class="required-label">Airline PNR *</label><input id="editAirlinePnr" name="airline_pnr" placeholder="Enter Airline PNR" required></div>
-<div><label class="required-label">Net Amount *</label><input id="editAmount" type="number" step="0.01" min="0" name="net_amount" placeholder="Enter Base Net Amount" required></div>
+<div><label class="required-label">Net Amount *</label><input id="editAmount" type="number" step="0.01" name="net_amount" placeholder="Enter Base Net Amount" required></div>
 <div><label class="required-label">Travel Start Date *</label><input id="editTravel" type="date" name="travel_date" required></div>
 <div><label class="required-label">Travel End Date *</label><input id="editEndDate" type="date" name="end_date" required></div>
 <div><label class="required-label">Booking Date *</label><input id="editBooked" type="date" name="booked_date" required></div>
@@ -56,14 +56,43 @@ function openEditBooking(b){
  document.getElementById('editSector').value=esc(b.sector); document.getElementById('editBookingType').value=esc(b.booking_type); document.getElementById('editTravelType').value=esc(b.travel_type);
  document.getElementById('editAirline').value=esc(b.airline); document.getElementById('editFareType').value=esc(b.fare_type || 'ANY CLASS'); document.getElementById('editAirlinePnr').value=esc(b.airline_pnr);
  document.getElementById('editAmount').value=esc(b.base_amount || b.net_amount); document.getElementById('editTravel').value=esc(b.travel_date); document.getElementById('editEndDate').value=esc(b.end_date); document.getElementById('editBooked').value=esc(b.booked_date);
- document.getElementById('editStatus').value=(String(b.status||'').trim().toLowerCase() === 'cancelled' ? 'Cancelled' : 'Confirmed');
- document.getElementById('cancelBookingForm').hidden=String(b.status||'').trim().toLowerCase() === 'cancelled';
+ const bAmt = parseFloat(b.net_amount || b.base_amount || 0);
+ const isCanc = (String(b.status||'').trim().toLowerCase() === 'cancelled') || (!isNaN(bAmt) && bAmt < 0);
+ document.getElementById('editStatus').value = isCanc ? 'Cancelled' : 'Confirmed';
+ document.getElementById('cancelBookingForm').hidden = isCanc;
  openModal('bookingEditModal');
 }
 function parsePriceRange(value){const raw=String(value||'').trim().replace(/,/g,'').replace(/[–—]/g,'-');if(!raw||/^0+(\.0+)?$/.test(raw))return null;const parts=raw.split('-').map(part=>Number(part.trim()));return parts.length===2&&parts.every(Number.isFinite)?parts:null;}
 function priceRangeMatches(value,amount){const raw=String(value||'').trim();const range=parsePriceRange(value);return !raw||/^0+(\.0+)?$/.test(raw)||(range&&amount>=range[0]&&amount<=range[1]);}
-function findRule(airline,type,amount){let a=(airline||'').trim().toLowerCase(),t=(type||'').trim().toLowerCase(); let matches=bookingRules.filter(r=>(String(r.status||'Active').toLowerCase()==='active') && priceRangeMatches(r.flat_price,amount) && ((String(r.airline||'ANY AIRLINE').toLowerCase()===a)||String(r.airline||'ANY AIRLINE').toLowerCase()==='any airline') && ((String(r.fare_type||'ANY CLASS').toLowerCase()===t)||String(r.fare_type||'ANY CLASS').toLowerCase()==='any class')); matches.sort((x,y)=>{const score=r=>(String(r.airline||'').toLowerCase()===a?4:0)+(String(r.fare_type||'').toLowerCase()===t?2:0), xRange=parsePriceRange(x.flat_price), yRange=parsePriceRange(y.flat_price);return score(y)-score(x)||Number(Boolean(yRange))-Number(Boolean(xRange))||((xRange?xRange[1]-xRange[0]:Infinity)-(yRange?yRange[1]-yRange[0]:Infinity));}); return matches[0];}
-function updateAddDiscount(){const amount=parseFloat(document.getElementById('addAmount').value||0), airline=document.querySelector('#bookingAddForm [name="airline"]').value, type=document.querySelector('#bookingAddForm [name="fare_type"]').value, r=findRule(airline,type,amount); const pct=r?parseFloat(r.percentage||0):0; const final=Math.max(0,amount-(amount*pct/100)); document.getElementById('addDiscountHint').textContent=r?`Rule applied: ${pct}% discount → Final Net Amount ₹${final.toFixed(2)}`:'No matching Rule → Final Net Amount is unchanged.';}
-document.getElementById('addAmount').addEventListener('input',updateAddDiscount); document.querySelector('#bookingAddForm [name="airline"]').addEventListener('input',updateAddDiscount); document.querySelector('#bookingAddForm [name="fare_type"]').addEventListener('change',updateAddDiscount);
+function findRule(airline,type,amount){if(amount<0)return null;let a=(airline||'').trim().toLowerCase(),t=(type||'').trim().toLowerCase(); let matches=bookingRules.filter(r=>(String(r.status||'Active').toLowerCase()==='active') && priceRangeMatches(r.flat_price,amount) && ((String(r.airline||'ANY AIRLINE').toLowerCase()===a)||String(r.airline||'ANY AIRLINE').toLowerCase()==='any airline') && ((String(r.fare_type||'ANY CLASS').toLowerCase()===t)||String(r.fare_type||'ANY CLASS').toLowerCase()==='any class')); matches.sort((x,y)=>{const score=r=>(String(r.airline||'').toLowerCase()===a?4:0)+(String(r.fare_type||'').toLowerCase()===t?2:0), xRange=parsePriceRange(x.flat_price), yRange=parsePriceRange(y.flat_price);return score(y)-score(x)||Number(Boolean(yRange))-Number(Boolean(xRange))||((xRange?xRange[1]-xRange[0]:Infinity)-(yRange?yRange[1]-yRange[0]:Infinity));}); return matches[0];}
+function updateAddDiscount(){
+ const amount=parseFloat(document.getElementById('addAmount').value);
+ const statusSelect=document.getElementById('addStatus') || document.querySelector('#bookingAddForm [name="status"]');
+ if(!isNaN(amount) && amount < 0){
+  if(statusSelect) statusSelect.value = 'Cancelled';
+  document.getElementById('addDiscountHint').textContent='Negative Net Amount → Booking Status automatically set to Cancelled.';
+  return;
+ }
+ if(!isNaN(amount) && amount >= 0 && statusSelect && statusSelect.value === 'Cancelled'){
+  statusSelect.value = 'Confirmed';
+ }
+ const airline=document.querySelector('#bookingAddForm [name="airline"]').value, type=document.querySelector('#bookingAddForm [name="fare_type"]').value, r=findRule(airline,type,isNaN(amount)?0:amount);
+ const pct=r?parseFloat(r.percentage||0):0;
+ const amtVal=isNaN(amount)?0:amount;
+ const final=Math.max(0,amtVal-(amtVal*pct/100));
+ document.getElementById('addDiscountHint').textContent=r?`Rule applied: ${pct}% discount → Final Net Amount ₹${final.toFixed(2)}`:'No matching Rule → Final Net Amount is unchanged.';
+}
+document.getElementById('addAmount').addEventListener('input',updateAddDiscount);
+document.querySelector('#bookingAddForm [name="airline"]').addEventListener('input',updateAddDiscount);
+document.querySelector('#bookingAddForm [name="fare_type"]').addEventListener('change',updateAddDiscount);
+document.getElementById('editAmount').addEventListener('input',function(){
+ const val=parseFloat(this.value);
+ if(!isNaN(val)){
+  const editStatus=document.getElementById('editStatus');
+  if(editStatus){
+   editStatus.value = val < 0 ? 'Cancelled' : 'Confirmed';
+  }
+ }
+});
 </script>
 {% endblock %}

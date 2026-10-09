@@ -502,6 +502,107 @@ class ExcelUploadMessageTests(SimpleTestCase):
         self.assertFalse(booking["is_auto"])
         self.assertTrue(booking["is_manual"])
 
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("-800.00"), Decimal("0"), None))
+    @patch("core.views.Booking.objects.create")
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    def test_add_booking_accepts_negative_amount_and_sets_status_cancelled(
+        self, customers, existing_bookings, create_booking, _calculate_discount
+    ):
+        customer = Customer(id="CL-1001", name="Client")
+        customers.return_value.first.return_value = customer
+        existing_bookings.return_value.exists.return_value = False
+
+        request = self.factory.post(
+            "/bookings/add/",
+            {
+                "s_pnr": "SPNRNEG1",
+                "ticket_no": "TKT-NEG-001",
+                "passenger_name": "Test Passenger",
+                "client_id": "CL-1001",
+                "sector": "DEL - MAA",
+                "booking_type": "Web Booking",
+                "travel_type": "One Way",
+                "airline": "Air India",
+                "fare_type": "Economy Class",
+                "airline_pnr": "AIRNEG1",
+                "net_amount": "-800.00",
+                "travel_date": "2026-10-15",
+                "end_date": "2026-10-15",
+                "booked_date": "2026-10-09",
+                "status": "Confirmed",  # Even if Confirmed is passed, negative amount forces Cancelled
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+
+        response = add_booking(request)
+        self.assertEqual(response.status_code, 302)
+        booking = create_booking.call_args.kwargs
+        self.assertEqual(booking["status"], "Cancelled")
+        self.assertEqual(booking["net_amount"], Decimal("-800.00"))
+        self.assertEqual(booking["base_amount"], Decimal("-800.00"))
+
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("-500.00"), Decimal("0"), None))
+    @patch("core.views.Ledger.objects.bulk_create")
+    @patch("core.views.Coupon.objects.bulk_create")
+    @patch("core.views.Coupon.objects.filter")
+    @patch("core.views.Booking.objects.select_related")
+    @patch("core.views.Booking.objects.select_for_update")
+    @patch("core.views.Booking.objects.bulk_create")
+    @patch("core.views.Booking.objects.exclude")
+    @patch("core.views.Customer.objects.in_bulk")
+    @patch("core.views.transaction.atomic", return_value=nullcontext())
+    @patch("openpyxl.load_workbook")
+    def test_excel_upload_accepts_negative_net_amount_and_sets_status_cancelled(
+        self,
+        load_workbook,
+        _atomic,
+        in_bulk,
+        _exclude,
+        booking_bulk_create,
+        _select_for_update,
+        imported_bookings_query,
+        _existing_coupons_query,
+        coupon_bulk_create,
+        _ledger_bulk_create,
+        _calculate_discount,
+    ):
+        headers = [
+            "S PNR", "Client ID", "Ticket No", "Passenger Name", "Sector", "Booking Type",
+            "Travel Type", "Airline Name", "Airline Type", "Airline PNR",
+            "Net Amount", "Travel Start Date", "Travel End Date", "Booking Date", "Status",
+        ]
+        row = [
+            "SPNR-NEG2", "CL-1001", "TKT-NEG-002", "Negative Passenger", "DEL-BOM", "Web Booking",
+            "One Way", "Air India", "Economy Class", "AI-NEG2", "-500",
+            "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed",
+        ]
+        workbook = load_workbook.return_value
+        _exclude.return_value.values_list.return_value = []
+        workbook.active.__getitem__.return_value = [SimpleNamespace(value=h) for h in headers]
+        workbook.active.iter_rows.return_value = [tuple(row)]
+
+        customer = Customer(id="CL-1001", name="Rohan Sharma")
+        in_bulk.return_value = {"CL-1001": customer}
+        _select_for_update.return_value.filter.return_value = []
+
+        imported_booking = Booking(
+            ticket_no="TKT-NEG-002",
+            net_amount=Decimal("-500.00"),
+            status="Cancelled",
+        )
+        imported_bookings_query.return_value.filter.return_value = [imported_booking]
+        _existing_coupons_query.return_value.values_list.return_value = []
+
+        request = self.make_request()
+        response = excel_upload(request)
+        self.assertEqual(response.status_code, 302)
+        created_bookings = booking_bulk_create.call_args.args[0]
+        self.assertEqual(created_bookings[0].status, "Cancelled")
+        self.assertEqual(created_bookings[0].net_amount, Decimal("-500.00"))
+        coupon_bulk_create.assert_not_called()
+
     def test_django_templates_include_message_context_processor(self):
         processors = settings.TEMPLATES[0]["OPTIONS"]["context_processors"]
         self.assertIn("django.contrib.messages.context_processors.messages", processors)
@@ -685,3 +786,12 @@ class CouponAvailabilityTimingTests(SimpleTestCase):
         self.assertEqual(coupon_status_map["BK-TOMORROW"], ("PENDING", False))
         self.assertEqual(coupon_status_map["BK-YESTERDAY"], ("AVAILABLE", True))
         self.assertEqual(coupon_status_map["BK-PAST-2DAYS"], ("AVAILABLE", True))
+
+    def test_calculate_discounted_net_negative_amount(self):
+        from core.views import calculate_discounted_net
+        amount, pct, rule = calculate_discounted_net("-450.50", "Air India", "Economy Class")
+        self.assertEqual(amount, Decimal("-450.50"))
+        self.assertEqual(pct, Decimal("0"))
+        self.assertIsNone(rule)
+
+

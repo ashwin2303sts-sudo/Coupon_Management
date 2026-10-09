@@ -277,7 +277,7 @@ def read(name):
                     "mobile": booking.mobile or "",
                     "airline_pnr": booking.airline_pnr or "",
 
-                    "status": "Cancelled" if str(booking.status or "").strip().lower() == "cancelled" else "Confirmed",
+                    "status": "Cancelled" if (str(booking.status or "").strip().lower() == "cancelled" or money(booking.net_amount) < 0) else "Confirmed",
                     "auto": booking.is_auto,
                     "manual": booking.is_manual,
                     "booking_type": booking.booking_type,
