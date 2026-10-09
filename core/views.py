@@ -1174,19 +1174,15 @@ def ledger(request):
     total_available = total_earned - total_redeemed + total_reversed
     total_transactions = len(ledger_entries)
 
-    page_obj = Paginator(filtered, 10).get_page(request.GET.get("page"))
     transaction_types = sorted({row["type"] for row in transactions if row["type"]})
     return render(request, "ledger.html", page_context(
         request,
-        ledger=page_obj.object_list,
-        page_obj=page_obj,
+        ledger=filtered,
         search=search,
         transaction_type=transaction_type,
         from_date=from_date,
         to_date=to_date,
         transaction_types=transaction_types,
-        start_index=page_obj.start_index() if page_obj.object_list else 0,
-        end_index=page_obj.end_index() if page_obj.object_list else 0,
         total_count=len(filtered),
         total_earned=total_earned,
         total_redeemed=total_redeemed,

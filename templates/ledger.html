@@ -1,146 +1,6 @@
 {% extends "base.html" %}
 {% block page_title %}Ledger{% endblock %}
 {% block content %}
-<style>
-/* LEDGER: Native Browser Global Window Scrollbar & Full Details Expansion */
-html, body {
-    height: auto !important;
-    min-height: 100% !important;
-    max-height: none !important;
-    overflow-y: scroll !important; /* Force standard native window scrollbar */
-    overflow-x: hidden !important;
-}
-.app {
-    height: auto !important;
-    min-height: 100vh !important;
-    max-height: none !important;
-    overflow: visible !important;
-    display: flex !important;
-}
-.sidebar {
-    position: fixed !important;
-    top: 0 !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    height: 100vh !important;
-    overflow-y: auto !important;
-    z-index: 200 !important;
-}
-.main {
-    margin-left: 280px !important;
-    width: calc(100% - 280px) !important;
-    height: auto !important;
-    min-height: 100vh !important;
-    max-height: none !important;
-    overflow: visible !important;
-    display: flex !important;
-    flex-direction: column !important;
-}
-.topbar {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 100 !important;
-    background: rgba(255, 255, 255, 0.98) !important;
-    backdrop-filter: blur(10px) !important;
-    -webkit-backdrop-filter: blur(10px) !important;
-    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08) !important;
-}
-.content {
-    height: auto !important;
-    min-height: calc(100vh - 78px) !important;
-    max-height: none !important;
-    overflow: visible !important;
-    display: block !important;
-    padding-bottom: 120px !important;
-}
-.ledger-card {
-    height: auto !important;
-    max-height: none !important;
-    overflow: visible !important;
-    margin-bottom: 80px !important;
-}
-.ledger-table-wrap {
-    overflow-y: visible !important;
-    overflow-x: auto !important;
-    max-height: none !important;
-    min-height: auto !important;
-    height: auto !important;
-    flex: none !important;
-}
-.ledger-table {
-    width: 100% !important;
-    min-width: 1050px !important;
-    table-layout: auto !important;
-}
-.ledger-table tbody tr {
-    height: auto !important;
-}
-.ledger-table td, .ledger-table th {
-    padding: 12px 10px !important;
-}
-.ledger-pagination {
-    margin-top: 16px !important;
-    padding-top: 16px !important;
-    border-top: 1px solid #edf2f7 !important;
-}
-@media (max-width: 768px) {
-    .main {
-        margin-left: 0 !important;
-        width: 100% !important;
-    }
-}
-</style>
-<script>
-(function() {
-    function applyLedgerGlobalScroll() {
-        document.documentElement.style.setProperty('overflow-y', 'scroll', 'important');
-        document.documentElement.style.setProperty('height', 'auto', 'important');
-        document.documentElement.style.setProperty('max-height', 'none', 'important');
-        document.body.style.setProperty('overflow-y', 'scroll', 'important');
-        document.body.style.setProperty('height', 'auto', 'important');
-        document.body.style.setProperty('max-height', 'none', 'important');
-        var app = document.querySelector('.app');
-        if (app) {
-            app.style.setProperty('overflow', 'visible', 'important');
-            app.style.setProperty('height', 'auto', 'important');
-            app.style.setProperty('max-height', 'none', 'important');
-        }
-        var m = document.querySelector('.main');
-        if (m) {
-            m.style.setProperty('overflow', 'visible', 'important');
-            m.style.setProperty('height', 'auto', 'important');
-            m.style.setProperty('max-height', 'none', 'important');
-        }
-        var c = document.querySelector('.content');
-        if (c) {
-            c.style.setProperty('overflow', 'visible', 'important');
-            c.style.setProperty('height', 'auto', 'important');
-            c.style.setProperty('max-height', 'none', 'important');
-            c.style.setProperty('display', 'block', 'important');
-            c.style.setProperty('padding-bottom', '120px', 'important');
-        }
-        var lc = document.querySelector('.ledger-card');
-        if (lc) {
-            lc.style.setProperty('margin-bottom', '80px', 'important');
-            lc.style.setProperty('overflow', 'visible', 'important');
-            lc.style.setProperty('height', 'auto', 'important');
-            lc.style.setProperty('max-height', 'none', 'important');
-            var ltw = lc.querySelector('.ledger-table-wrap');
-            if (ltw) {
-                ltw.style.setProperty('overflow-y', 'visible', 'important');
-                ltw.style.setProperty('max-height', 'none', 'important');
-                ltw.style.setProperty('height', 'auto', 'important');
-                ltw.style.setProperty('flex', 'none', 'important');
-            }
-        }
-    }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', applyLedgerGlobalScroll);
-    } else {
-        applyLedgerGlobalScroll();
-    }
-})();
-</script>
 <div class="ledger-summary-grid">
     <article class="ledger-metric"><span class="ledger-metric-icon booking-icon">+</span><div><small>TOTAL COUPON EARNED</small><strong>₹{{ total_earned|floatformat:2 }}</strong></div></article>
     <article class="ledger-metric"><span class="ledger-metric-icon discount-icon">−</span><div><small>TOTAL REDEEMED</small><strong>₹{{ total_redeemed|floatformat:2 }}</strong></div></article>
@@ -174,7 +34,7 @@ html, body {
             <tbody>
             {% for x in ledger %}
             <tr>
-                <td>{{ start_index|add:forloop.counter0 }}</td>
+                <td>{{ forloop.counter }}</td>
                 <td class="ledger-id">{{ x.txn_id }}</td>
                 <td>{{ x.date }}</td>
                 <td>{{ x.customer_name }}<small>{{ x.customer_id }}</small></td>
@@ -190,15 +50,6 @@ html, body {
             {% endfor %}
             </tbody>
         </table>
-    </div>
-
-    <div class="ledger-pagination">
-        <span>Showing {{ start_index }} to {{ end_index }} of {{ total_count }} entries</span>
-        <nav aria-label="Ledger pages">
-            {% if page_obj.has_previous %}<a href="?q={{ search|urlencode }}&amp;transaction_type={{ transaction_type|urlencode }}&amp;from_date={{ from_date|urlencode }}&amp;to_date={{ to_date|urlencode }}&amp;page={{ page_obj.previous_page_number }}">PREVIOUS</a>{% else %}<span class="disabled">PREVIOUS</span>{% endif %}
-            {% for number in page_obj.paginator.page_range %}<a class="{% if number == page_obj.number %}current{% endif %}" href="?q={{ search|urlencode }}&amp;transaction_type={{ transaction_type|urlencode }}&amp;from_date={{ from_date|urlencode }}&amp;to_date={{ to_date|urlencode }}&amp;page={{ number }}">{{ number }}</a>{% endfor %}
-            {% if page_obj.has_next %}<a href="?q={{ search|urlencode }}&amp;transaction_type={{ transaction_type|urlencode }}&amp;from_date={{ from_date|urlencode }}&amp;to_date={{ to_date|urlencode }}&amp;page={{ page_obj.next_page_number }}">NEXT</a>{% else %}<span class="disabled">NEXT</span>{% endif %}
-        </nav>
     </div>
 </section>
 {% endblock %}
