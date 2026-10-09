@@ -1371,28 +1371,31 @@ table thead th,
    are always completely visible without bottom clipping.
    ============================================================ */
 .main.client-portal-main {
-    overflow-y: auto !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow-y: scroll !important;
     overflow-x: hidden !important;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    scrollbar-color: #8492a6 #e8edf3;
+    scrollbar-color: #64748b #e2e8f0;
 }
 
 .main.client-portal-main::-webkit-scrollbar {
-    width: 10px;
+    width: 12px;
 }
 
 .main.client-portal-main::-webkit-scrollbar-track {
-    background: #e8edf3;
+    background: #e2e8f0;
 }
 
 .main.client-portal-main::-webkit-scrollbar-thumb {
-    background: #8492a6;
-    border-radius: 5px;
+    background: #64748b;
+    border-radius: 6px;
+    border: 2px solid #e2e8f0;
 }
 
 .main.client-portal-main::-webkit-scrollbar-thumb:hover {
-    background: #64748b;
+    background: #334155;
 }
 
 .main.client-portal-main .topbar {
@@ -1412,11 +1415,11 @@ table thead th,
     max-height: none !important;
     overflow: visible !important;
     display: block !important;
-    padding-bottom: 60px !important;
+    padding-bottom: 90px !important;
 }
 
 .portal-table-card {
-    margin-bottom: 40px !important;
+    margin-bottom: 60px !important;
     overflow: visible !important;
 }
 
@@ -1425,6 +1428,7 @@ table thead th,
     overflow-x: auto !important;
     max-height: none !important;
     min-height: auto !important;
+    height: auto !important;
     flex: none !important;
 }
 
