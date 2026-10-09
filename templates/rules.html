@@ -53,7 +53,7 @@
                 <datalist id="ruleAirlineList">{% for x in airlines %}<option value="{{ x }}"></option>{% endfor %}</datalist>
             </div>
             <div>
-                <label class="required-label">AIRLINE TYPE *</label>
+                <label class="required-label">CLASS TYPE *</label>
                 <select name="fare_type" required>{% for x in airline_types %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select>
             </div>
             <div>
@@ -84,7 +84,7 @@
                 <tr>
                     <th>ID</th>
                     <th>AIRLINE NAME</th>
-                    <th>AIRLINE TYPE</th>
+                    <th>CLASS TYPE</th>
                     <th>FLAT PRICE RANGE</th>
                     <th>DISCOUNT %</th>
                     <th>STATUS</th>

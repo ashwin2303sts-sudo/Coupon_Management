@@ -6,7 +6,7 @@
     <h2>Customers Management</h2>
     <button class="btn primary" onclick="openModal('customerAddModal')" type="button">+ ADD CUSTOMER</button>
   </div>
-  <div class="table-wrap"><table class="customer-bookings-table"><thead><tr><th>CLIENT ID</th><th>BOOKING TYPE</th><th>TRAVEL TYPE</th><th>TRAVEL START DATE</th><th>TRAVEL END DATE</th><th>BOOKED DATE</th><th>AMOUNT</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
+  <div class="table-wrap"><table class="customer-bookings-table"><thead><tr><th>CLIENT ID</th><th>BOOKING TYPE</th><th>TRIP TYPE</th><th>TRAVEL START DATE</th><th>TRAVEL END DATE</th><th>BOOKED DATE</th><th>AMOUNT</th><th>STATUS</th><th>ACTIONS</th></tr></thead>
   <tbody>{% for c in customers %}<tr>
     <td><b>{{ c.id }}</b></td><td>{{ c.booking_type }}</td><td>{{ c.travel_type }}</td><td>{{ c.travel_start }}</td><td>{{ c.travel_end }}</td><td>{{ c.booked_date }}</td><td class="money">₹{{ c.amount|floatformat:2 }}</td><td><span class="badge {% if c.status == 'ACTIVE' %}success{% else %}pending{% endif %}">{{ c.status }}</span></td>
     <td><button class="btn secondary" onclick="openEditCustomer('{{ c.id|escapejs }}','{{ c.name|escapejs }}','{{ c.email|escapejs }}','{{ c.phone|escapejs }}','{{ c.status|escapejs }}')">EDIT</button>

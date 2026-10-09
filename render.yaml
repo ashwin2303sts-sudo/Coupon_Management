@@ -11,15 +11,15 @@ services:
       - key: DEBUG
         value: "False"
       - key: MYSQL_DATABASE
-        sync: false
+        value: coupon_management
       - key: MYSQL_USER
-        sync: false
+        value: 46kkFoCWPfKm8RH.root
       - key: MYSQL_PASSWORD
-        sync: false
+        value: F2I9tzFlrCX8WHGP
       - key: MYSQL_HOST
-        sync: false
+        value: gateway01.ap-northeast-1.prod.aws.tidbcloud.com
       - key: MYSQL_PORT
-        sync: false
+        value: "4000"
       - key: MYSQL_SSL_MODE
         value: REQUIRED
       - key: SECRET_KEY

@@ -2,9 +2,7 @@ from django.db.backends.mysql.features import DatabaseFeatures
 
 
 def _minimum_database_version(self):
-    if self.connection.mysql_is_mariadb:
-        return (10, 4)
-    return (8, 0, 11)
+    return (5, 7)
 
 
 DatabaseFeatures.minimum_database_version = property(_minimum_database_version)

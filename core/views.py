@@ -32,14 +32,29 @@ AIRLINES = [
     "Saudia", "flydubai", "Air Arabia", "Azerbaijan Airlines", "Ethiopian Airlines",
     "Kenya Airways", "South African Airways", "ANY AIRLINE",
 ]
-AIRLINE_TYPES = ["Economy Class", "Premium Class", "Business Class", "ANY CLASS"]
+AIRLINE_TYPES = ["Economy", "Premium Economy", "Business", "FirstClass", "ANY TYPE"]
 BOOKING_METHODS = ["Web Booking", "Mobile App", "Agent Booking", "Offline/Counter"]
-TRAVEL_TYPES = ["Round Trip", "One Way"]
+TRAVEL_TYPES = ["Round Trip", "One Way", "Multicity"]
 logger = logging.getLogger(__name__)
 
 
 def _normalise(value):
     return str(value or "").strip().casefold()
+
+
+def _normalize_class_type(value):
+    s = str(value or "").strip().casefold()
+    if not s or s in {"any class", "any type"} or "any" in s:
+        return "any class"
+    if "prem" in s:
+        return "premium economy"
+    if "econ" in s:
+        return "economy"
+    if "bus" in s:
+        return "business"
+    if "first" in s:
+        return "firstclass"
+    return s
 
 
 def _parse_flat_price_range(value):
@@ -74,7 +89,7 @@ def _rule_matches(rule, airline, airline_type, base_amount=None):
     rule_airline = str(rule.get("airline") or "ANY AIRLINE").strip()
     rule_type = str(rule.get("fare_type") or "ANY CLASS").strip()
     airline_ok = _normalise(rule_airline) in {_normalise(airline), "any airline"}
-    type_ok = _normalise(rule_type) in {_normalise(airline_type), "any class"}
+    type_ok = _normalize_class_type(rule_type) in {_normalize_class_type(airline_type), "any class"}
     if not airline_ok or not type_ok:
         return False
     try:
@@ -98,7 +113,7 @@ def _find_matching_rule(airline, airline_type, base_amount=None):
         score = 0
         if _normalise(rule.get("airline")) == _normalise(airline):
             score += 4
-        if _normalise(rule.get("fare_type")) == _normalise(airline_type):
+        if _normalize_class_type(rule.get("fare_type")) == _normalize_class_type(airline_type):
             score += 2
         price_range = _parse_flat_price_range(rule.get("flat_price"))
         return (
@@ -302,7 +317,7 @@ def client_portal(request):
 
     all_bookings = read("bookings")
     for booking in all_bookings:
-        if booking.get("booking_type") in {"Round Trip", "One Way"} and not booking.get("travel_type"):
+        if booking.get("booking_type") in {"Round Trip", "One Way", "Multicity"} and not booking.get("travel_type"):
             booking["travel_type"] = booking["booking_type"]
             booking["booking_type"] = "Web Booking"
         booking.setdefault("booking_type", "Web Booking")
@@ -479,7 +494,7 @@ def customers(request):
         for booking in client_bookings:
             booking_type = booking.get("booking_type") or "Web Booking"
             travel_type = booking.get("travel_type") or "-"
-            if booking_type in {"Round Trip", "One Way"} and travel_type == "-":
+            if booking_type in {"Round Trip", "One Way", "Multicity"} and travel_type == "-":
                 travel_type = booking_type
                 booking_type = "Web Booking"
             customer_rows.append({
@@ -641,9 +656,9 @@ def add_booking(request):
         "Passenger Name": request.POST.get("passenger_name", "").strip(),
         "Sector": request.POST.get("sector", "").strip(),
         "Booking Type": request.POST.get("booking_type", "").strip(),
-        "Travel Type": request.POST.get("travel_type", "").strip(),
+        "Trip Type": request.POST.get("travel_type", "").strip(),
         "Airline Name": request.POST.get("airline", "").strip(),
-        "Airline Type": request.POST.get("fare_type", "").strip(),
+        "Class Type": request.POST.get("fare_type", "").strip(),
         "Airline PNR": request.POST.get("airline_pnr", "").strip(),
         "Net Amount": request.POST.get("net_amount", "").strip(),
         "Travel Start Date": request.POST.get("travel_date", "").strip(),
@@ -677,7 +692,7 @@ def add_booking(request):
         return redirect("bookings")
 
     final_net, discount_pct, matched_rule = calculate_discounted_net(
-        parsed_net, required_fields["Airline Name"], required_fields["Airline Type"]
+        parsed_net, required_fields["Airline Name"], required_fields["Class Type"]
     )
     Booking.objects.create(
         pnr=required_fields["S PNR"],
@@ -686,9 +701,9 @@ def add_booking(request):
         passenger_name=required_fields["Passenger Name"],
         sector=required_fields["Sector"],
         booking_type=required_fields["Booking Type"],
-        travel_type=required_fields["Travel Type"],
+        travel_type=required_fields["Trip Type"],
         airline=required_fields["Airline Name"],
-        fare_type=required_fields["Airline Type"],
+        fare_type=required_fields["Class Type"],
         airline_pnr=required_fields["Airline PNR"],
         net_amount=decimal_value(final_net),
         base_amount=decimal_value(parsed_net),
@@ -1237,11 +1252,14 @@ def _canonical_excel_headers(headers):
         "name": "Passenger Name",
         "sector": "Sector",
         "bookingtype": "Booking Type",
-        "traveltype": "Travel Type",
+        "traveltype": "Trip Type",
+        "triptype": "Trip Type",
         "airlinename": "Airline Name",
         "airline": "Airline Name",
-        "airlinetype": "Airline Type",
-        "faretype": "Airline Type",
+        "airlinetype": "Class Type",
+        "faretype": "Class Type",
+        "classtype": "Class Type",
+        "class": "Class Type",
         "airlinepnr": "Airline PNR",
         "netamount": "Net Amount",
         "amount": "Net Amount",
@@ -1307,9 +1325,9 @@ def excel_upload(request):
                 "Passenger Name",
                 "Sector",
                 "Booking Type",
-                "Travel Type",
+                "Trip Type",
                 "Airline Name",
-                "Airline Type",
+                "Class Type",
                 "Airline PNR",
                 "Net Amount",
                 "Travel Start Date",
@@ -1418,9 +1436,9 @@ def excel_upload(request):
                     "passenger_name": str(row["Passenger Name"]).strip(),
                     "sector": str(row["Sector"]).strip(),
                     "booking_type": str(row["Booking Type"]).strip(),
-                    "travel_type": str(row["Travel Type"]).strip(),
+                    "travel_type": str(row["Trip Type"]).strip(),
                     "airline": str(row["Airline Name"]).strip(),
-                    "fare_type": str(row["Airline Type"]).strip(),
+                    "fare_type": str(row["Class Type"]).strip(),
                     "airline_pnr": str(row["Airline PNR"]).strip(),
                     "base_amount": base_amount,
                     "status": booking_status or "Confirmed",
@@ -1646,9 +1664,9 @@ def download_excel_template(request):
         "Passenger Name",
         "Sector",
         "Booking Type",
-        "Travel Type",
+        "Trip Type",
         "Airline Name",
-        "Airline Type",
+        "Class Type",
         "Airline PNR",
         "Net Amount",
         "Travel Start Date",
