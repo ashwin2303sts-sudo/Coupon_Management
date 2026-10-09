@@ -71,12 +71,26 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "coupon_system.wsgi.application"
 
-# MySQL / MariaDB / TiDB. Local XAMPP connections do not require TLS;
-# remote database providers (e.g. TiDB Cloud) require TLS/SSL.
+# MySQL / MariaDB / TiDB.
+# Automatically detects Render Cloud (TiDB) vs Local Development (XAMPP):
 import sys
 
-mysql_host = os.getenv("MYSQL_HOST", "gateway01.ap-northeast-1.prod.aws.tidbcloud.com").strip()
+is_render = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_HOSTNAME"))
+
+if is_render:
+    default_host = "gateway01.ap-northeast-1.prod.aws.tidbcloud.com"
+    default_port = "4000"
+    default_user = "46kkFoCWPfKm8RH.root"
+    default_pass = "F2I9tzFlrCX8WHGP"
+else:
+    default_host = "127.0.0.1"
+    default_port = "3306"
+    default_user = "root"
+    default_pass = ""
+
+mysql_host = os.getenv("MYSQL_HOST", default_host).strip()
 db_options = {"charset": "utf8mb4"}
+
 if mysql_host not in ("127.0.0.1", "localhost"):
     if "pymysql" in sys.modules:
         db_options["ssl"] = {"ssl": True}
@@ -87,10 +101,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
         "NAME": os.getenv("MYSQL_DATABASE", "coupon_management"),
-        "USER": os.getenv("MYSQL_USER", "46kkFoCWPfKm8RH.root"),
-        "PASSWORD": os.getenv("MYSQL_PASSWORD", "F2I9tzFlrCX8WHGP"),
+        "USER": os.getenv("MYSQL_USER", default_user),
+        "PASSWORD": os.getenv("MYSQL_PASSWORD", default_pass),
         "HOST": mysql_host,
-        "PORT": os.getenv("MYSQL_PORT", "4000"),
+        "PORT": os.getenv("MYSQL_PORT", default_port),
         "OPTIONS": db_options,
     }
 }
