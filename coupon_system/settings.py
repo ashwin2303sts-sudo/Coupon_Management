@@ -71,49 +71,44 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "coupon_system.wsgi.application"
 
-# MySQL / MariaDB / TiDB.
-# Automatically detects Render Cloud (TiDB) vs Local Development (XAMPP):
-import sys
-
-is_render = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_HOSTNAME"))
-
-if is_render:
-    default_host = "gateway01.ap-northeast-1.prod.aws.tidbcloud.com"
-    default_port = "4000"
-    default_user = "46kkFoCWPfKm8RH.root"
-    default_pass = "F2I9tzFlrCX8WHGP"
-else:
-    default_host = "127.0.0.1"
-    default_port = "3306"
-    default_user = "root"
-    default_pass = ""
+# MySQL / MariaDB / TiDB Cloud settings:
+# TiDB Cloud is the primary database for both cloud and local usage.
+default_host = "gateway01.ap-northeast-1.prod.aws.tidbcloud.com"
+default_port = "4000"
+default_user = "46kkFoCWPfKm8RH.root"
+default_pass = "F2I9tzFlrCX8WHGP"
+default_db = "coupon_management"
 
 mysql_host = os.getenv("MYSQL_HOST", default_host).strip()
+mysql_port = os.getenv("MYSQL_PORT", default_port).strip()
+mysql_user = os.getenv("MYSQL_USER", default_user).strip()
+mysql_pass = os.getenv("MYSQL_PASSWORD", default_pass)
+mysql_db = os.getenv("MYSQL_DATABASE", default_db).strip()
+
 db_options = {"charset": "utf8mb4"}
 
 if mysql_host not in ("127.0.0.1", "localhost"):
-    if "pymysql" in sys.modules:
-        db_options["ssl"] = {"ssl": True}
-    else:
-        db_options["ssl_mode"] = os.getenv("MYSQL_SSL_MODE", "REQUIRED").strip() or "REQUIRED"
+    db_options["ssl"] = {"ssl": True}
 
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
-        "NAME": os.getenv("MYSQL_DATABASE", "coupon_management"),
-        "USER": os.getenv("MYSQL_USER", default_user),
-        "PASSWORD": os.getenv("MYSQL_PASSWORD", default_pass),
+        "NAME": mysql_db,
+        "USER": mysql_user,
+        "PASSWORD": mysql_pass,
         "HOST": mysql_host,
-        "PORT": os.getenv("MYSQL_PORT", default_port),
+        "PORT": mysql_port,
         "OPTIONS": db_options,
     }
 }
 
-# Keep authentication session lightweight; application records are stored in MySQL.
+# Keep authentication session lightweight; application records are stored in MySQL/TiDB.
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-if render_host:
+
+is_render = bool(os.getenv("RENDER") or os.getenv("RENDER_EXTERNAL_HOSTNAME"))
+if is_render or render_host:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -121,7 +116,16 @@ if render_host:
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+    },
+}
+WHITENOISE_MANIFEST_STRICT = False
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

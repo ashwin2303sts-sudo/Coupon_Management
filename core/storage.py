@@ -277,7 +277,11 @@ def read(name):
                     "mobile": booking.mobile or "",
                     "airline_pnr": booking.airline_pnr or "",
 
-                    "status": "Cancelled" if (str(booking.status or "").strip().lower() == "cancelled" or money(booking.net_amount) < 0) else "Confirmed",
+                    "status": (
+                        "Cancelled"
+                        if (str(booking.status or "").strip().lower() == "cancelled" or money(booking.net_amount) < 0)
+                        else ("Rescheduled" if str(booking.status or "").strip().lower() == "rescheduled" else "Confirmed")
+                    ),
                     "auto": booking.is_auto,
                     "manual": booking.is_manual,
                     "booking_type": booking.booking_type,
@@ -505,7 +509,9 @@ def read(name):
 
     if name == "ledger":
 
-        ledger_entries = Ledger.objects.select_related(
+        ledger_entries = Ledger.objects.exclude(
+            type__in=["Generated", "Coupon Generated"]
+        ).select_related(
             "customer",
             "booking",
         ).all().order_by("-date", "-created_at")
@@ -514,7 +520,7 @@ def read(name):
             b.pk: (
                 "Cancelled"
                 if str(b.status or "").strip().lower() == "cancelled"
-                else "Confirmed"
+                else ("Rescheduled" if str(b.status or "").strip().lower() == "rescheduled" else "Confirmed")
             )
             for b in Booking.objects.all()
         }
@@ -539,7 +545,7 @@ def read(name):
                 booking_status = (
                     "Cancelled"
                     if str(entry.booking.status or "").strip().lower() == "cancelled"
-                    else "Confirmed"
+                    else ("Rescheduled" if str(entry.booking.status or "").strip().lower() == "rescheduled" else "Confirmed")
                 )
                 ticket_no = entry.booking.ticket_no or ""
             elif entry.booking_id in booking_status_map:

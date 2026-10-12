@@ -74,6 +74,725 @@ html, body {
         width: 100% !important;
     }
 }
+
+/* CLIENT DETAILS MODAL (IMAGE 1 MODEL) */
+.client-details-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.65) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    z-index: 999999 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+}
+
+.client-details-dialog.modal {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 18px !important;
+    width: min(960px, calc(100vw - 32px)) !important;
+    max-width: 100% !important;
+    padding: 30px 36px 38px 36px !important;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.3) !important;
+    position: relative !important;
+    animation: clientModalFadeIn 0.25s ease-out !important;
+}
+
+@keyframes clientModalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-16px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.client-modal-header {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    margin-bottom: 24px !important;
+    padding-bottom: 6px !important;
+}
+
+.client-modal-header-left {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+}
+
+.client-modal-label {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+.client-modal-id-text {
+    margin: 0 !important;
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    color: #1e293b !important;
+    text-align: left !important;
+}
+
+/* Close Button with Red Hover */
+.client-modal-close-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #ffffff !important;
+    color: #334155 !important;
+    border: 2px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    padding: 8px 26px !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    transition: all 0.2s ease-in-out !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+.client-modal-close-btn:hover {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    border-color: #ef4444 !important;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* Top 3 Boxes (AVAILABLE AMOUNT, PENDING AMOUNT, TOTAL AMOUNT) with Pulsing Zoom-In / Zoom-Out Animation */
+.client-top-amount-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 22px !important;
+    max-width: 680px !important;
+    margin: 12px auto 32px auto !important;
+    width: 100% !important;
+}
+
+.client-amount-box {
+    border-radius: 12px !important;
+    padding: 18px 14px !important;
+    color: #ffffff !important;
+    text-align: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 108px !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12) !important;
+    transform-origin: center !important;
+    animation: coupon-points-pulse 1.8s ease-in-out infinite !important;
+}
+
+.client-amount-box.box-green {
+    background: linear-gradient(135deg, #00875a 0%, #00a36c 100%) !important;
+}
+.client-amount-box.box-yellow {
+    background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+}
+.client-amount-box.box-red {
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
+}
+
+/* Bottom 4 Equal-size Boxes - NO Zoom In/Out */
+.client-bottom-points-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 16px !important;
+    width: 100% !important;
+    margin-top: 8px !important;
+    margin-bottom: 6px !important;
+}
+
+.client-points-box {
+    border-radius: 12px !important;
+    padding: 18px 14px !important;
+    color: #ffffff !important;
+    text-align: center !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 112px !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1) !important;
+    animation: none !important;
+    transform: none !important;
+}
+
+.client-points-box .box-label,
+.client-amount-box .box-label {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.5px !important;
+    text-transform: uppercase !important;
+    opacity: 0.95 !important;
+    margin-bottom: 6px !important;
+    color: #ffffff !important;
+}
+
+.client-points-box .box-val,
+.client-amount-box .box-val {
+    font-size: 26px !important;
+    font-weight: 800 !important;
+    line-height: 1.15 !important;
+    margin-bottom: 4px !important;
+    color: #ffffff !important;
+}
+
+.client-points-box .box-sub,
+.client-amount-box .box-sub {
+    font-size: 10px !important;
+    opacity: 0.88 !important;
+    color: #ffffff !important;
+}
+
+/* Bottom 4 Card Colors */
+.client-points-box.box-green {
+    background: linear-gradient(135deg, #00875a 0%, #00a36c 100%) !important;
+}
+.client-points-box.box-yellow {
+    background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%) !important;
+}
+.client-points-box.box-blue {
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%) !important;
+}
+.client-points-box.box-red {
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%) !important;
+}
+
+/* Clickable Client ID link */
+.client-id-link {
+    color: #2563eb !important;
+    text-decoration: none !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    display: inline-block !important;
+    transition: background-color 0.15s ease, color 0.15s ease !important;
+}
+.client-id-link:hover {
+    color: #1d4ed8 !important;
+    background-color: #eff6ff !important;
+    text-decoration: underline !important;
+}
+
+/* Bottom Actions: History (Left, Red) & Generate Coupon Code (Right, Green) */
+.client-modal-footer {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    margin-top: 28px !important;
+    padding-top: 4px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.btn-client-history {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: #dc2626 !important; /* Red background */
+    color: #ffffff !important; /* White text */
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    padding: 12px 34px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    letter-spacing: 0.5px !important;
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+.btn-client-history:hover {
+    background: #b91c1c !important;
+    color: #ffffff !important;
+    box-shadow: 0 6px 20px rgba(185, 28, 28, 0.45) !important;
+    transform: translateY(-2px) !important;
+}
+
+.btn-client-history:active {
+    transform: translateY(0) !important;
+}
+
+.btn-coupon-generate {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: linear-gradient(135deg, #00875a 0%, #00a36c 100%) !important;
+    color: #ffffff !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    padding: 12px 36px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    letter-spacing: 0.5px !important;
+    box-shadow: 0 4px 14px rgba(0, 135, 90, 0.35) !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+.btn-coupon-generate:hover {
+    background: linear-gradient(135deg, #00a36c 0%, #059669 100%) !important;
+    color: #ffffff !important;
+    box-shadow: 0 6px 20px rgba(0, 163, 108, 0.45) !important;
+    transform: translateY(-2px) !important;
+}
+
+.btn-coupon-generate:active {
+    transform: translateY(0) !important;
+}
+
+@media (max-width: 768px) {
+    .client-top-amount-grid {
+        grid-template-columns: 1fr !important;
+        max-width: 100% !important;
+    }
+    .client-bottom-points-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+}
+
+/* GENERATE COUPON POPUP (IMAGE 2, 3, 4, 5) */
+.gen-coupon-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    background: rgba(15, 23, 42, 0.7) !important;
+    backdrop-filter: blur(5px) !important;
+    -webkit-backdrop-filter: blur(5px) !important;
+    z-index: 9999999 !important;
+    display: none;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 20px !important;
+}
+
+.gen-coupon-dialog {
+    background: #ffffff !important;
+    border-radius: 16px !important;
+    width: min(680px, calc(100vw - 32px)) !important;
+    padding: 32px 36px 36px 36px !important;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35) !important;
+    position: relative !important;
+    animation: clientModalFadeIn 0.22s ease-out !important;
+    box-sizing: border-box !important;
+}
+
+.gen-coupon-close-btn {
+    position: absolute !important;
+    top: 18px !important;
+    right: 22px !important;
+    background: transparent !important;
+    border: none !important;
+    font-size: 28px !important;
+    line-height: 1 !important;
+    color: #64748b !important;
+    cursor: pointer !important;
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    transition: color 0.15s, background-color 0.15s !important;
+}
+
+.gen-coupon-close-btn:hover {
+    color: #0f172a !important;
+    background-color: #f1f5f9 !important;
+}
+
+.gen-coupon-header {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    margin-bottom: 4px !important;
+}
+
+.gen-coupon-title {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+}
+
+.gen-coupon-header-amount-box {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    text-align: right !important;
+    margin-right: 36px !important;
+}
+
+.gen-coupon-header-amt {
+    font-size: 28px !important;
+    font-weight: 800 !important;
+    color: #dc2626 !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.5px !important;
+}
+
+.gen-coupon-header-label {
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    margin-top: 2px !important;
+}
+
+.gen-coupon-subtitle {
+    color: #475569 !important;
+    font-size: 14.5px !important;
+    margin: 6px 0 24px 0 !important;
+    line-height: 1.5 !important;
+}
+
+.gen-coupon-form-group {
+    margin-bottom: 8px !important;
+}
+
+.gen-coupon-label {
+    display: block !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    margin-bottom: 8px !important;
+}
+
+.gen-coupon-input-row {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 12px !important;
+    align-items: center !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+.gen-coupon-input {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    line-height: 48px !important;
+    padding: 0 16px !important;
+    border: 1.5px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    font-size: 15px !important;
+    color: #0f172a !important;
+    outline: none !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    vertical-align: middle !important;
+    transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+
+.gen-coupon-input:focus {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2) !important;
+}
+
+.gen-coupon-submit-btn {
+    flex: 0 0 auto !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    max-height: 48px !important;
+    line-height: 48px !important;
+    padding: 0 24px !important;
+    background: #f59e0b !important;
+    color: #1e293b !important;
+    font-size: 15px !important;
+    font-weight: 800 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 2px 6px rgba(245, 158, 11, 0.25) !important;
+    transition: background-color 0.15s, transform 0.1s !important;
+}
+
+.gen-coupon-submit-btn:hover {
+    background: #d97706 !important;
+}
+
+.gen-coupon-submit-btn:active {
+    transform: scale(0.98) !important;
+}
+
+.gen-coupon-msg {
+    margin-top: 10px !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 1.4 !important;
+}
+
+.gen-coupon-msg.text-success {
+    color: #059669 !important;
+}
+
+.gen-coupon-msg.text-error {
+    color: #dc2626 !important;
+}
+
+/* TICKET CARD (IMAGE 3) - HIDDEN UNTIL GENERATED */
+.gen-ticket-container {
+    background: #113427 !important;
+    border-radius: 12px !important;
+    margin-top: 22px !important;
+    display: none !important; /* STRICTLY HIDDEN UNTIL GENERATE BUTTON CLICKED */
+    align-items: center !important;
+    padding: 18px 24px !important;
+    position: relative !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px rgba(17, 52, 39, 0.25) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    min-height: 104px !important;
+}
+
+.gen-ticket-container.is-visible {
+    display: flex !important;
+}
+
+.gen-ticket-left {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 36% !important;
+    padding-right: 18px !important;
+    box-sizing: border-box !important;
+}
+
+.gen-ticket-lbl {
+    font-size: 13px !important;
+    color: #cbd5e1 !important;
+    margin-bottom: 4px !important;
+    font-weight: 500 !important;
+}
+
+.gen-ticket-val {
+    font-size: 36px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    line-height: 1 !important;
+}
+
+.gen-ticket-divider-wrap {
+    position: absolute !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 36% !important;
+    width: 28px !important;
+    margin-left: -14px !important;
+    pointer-events: none !important;
+}
+
+.gen-ticket-notch-top {
+    position: absolute !important;
+    top: -14px !important;
+    left: 0 !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    background: #ffffff !important;
+    z-index: 5 !important;
+}
+
+.gen-ticket-notch-bottom {
+    position: absolute !important;
+    bottom: -14px !important;
+    left: 0 !important;
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    background: #ffffff !important;
+    z-index: 5 !important;
+}
+
+.gen-ticket-dashed-line {
+    position: absolute !important;
+    top: 14px !important;
+    bottom: 14px !important;
+    left: 13px !important;
+    border-left: 2px dashed rgba(255, 255, 255, 0.4) !important;
+}
+
+.gen-ticket-right {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-left: 18px !important;
+    box-sizing: border-box !important;
+}
+
+.gen-ticket-code {
+    font-size: 21px !important;
+    font-weight: 800 !important;
+    letter-spacing: 1.5px !important;
+    color: #ffffff !important;
+    margin-bottom: 10px !important;
+}
+
+.gen-ticket-copy-btn {
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    color: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 6px 30px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.2s !important;
+}
+
+.gen-ticket-copy-btn:hover {
+    background: rgba(255, 255, 255, 0.22) !important;
+    border-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* TRANSACTION HISTORY MODAL (IMAGE 2) */
+.history-dialog {
+    width: min(800px, calc(100vw - 32px)) !important;
+    max-width: 100% !important;
+    padding: 30px 32px 34px 32px !important;
+    box-sizing: border-box !important;
+}
+
+.history-modal-header {
+    margin-bottom: 18px !important;
+}
+
+.history-title {
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    margin: 0 0 6px 0 !important;
+}
+
+.history-subtitle {
+    color: #64748b !important;
+    font-size: 14.5px !important;
+    margin: 0 !important;
+    line-height: 1.5 !important;
+}
+
+.history-table-wrap {
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-top: 14px !important;
+    border-radius: 8px !important;
+    border: 1px solid #f1f5f9 !important;
+    box-sizing: border-box !important;
+}
+
+.history-table-wrap::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
+.history-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+}
+
+.history-table th:nth-child(1),
+.history-table td:nth-child(1) {
+    width: 24% !important;
+    text-align: left !important;
+}
+
+.history-table th:nth-child(2),
+.history-table td:nth-child(2) {
+    width: 18% !important;
+    text-align: left !important;
+}
+
+.history-table th:nth-child(3),
+.history-table td:nth-child(3) {
+    width: 26% !important;
+    text-align: left !important;
+}
+
+.history-table th:nth-child(4),
+.history-table td:nth-child(4) {
+    width: 16% !important;
+    text-align: right !important;
+}
+
+.history-table th:nth-child(5),
+.history-table td:nth-child(5) {
+    width: 16% !important;
+    text-align: right !important;
+}
+
+.history-table th {
+    padding: 12px 10px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: #475569 !important;
+    border-bottom: 1.5px solid #e2e8f0 !important;
+    background: #f8fafc !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+}
+
+.history-table td {
+    padding: 14px 10px !important;
+    font-size: 14.5px !important;
+    color: #1e293b !important;
+    border-bottom: 1px solid #f1f5f9 !important;
+    white-space: nowrap !important;
+    box-sizing: border-box !important;
+}
+
+.history-table tr:last-child td {
+    border-bottom: none !important;
+}
+
+.history-table .amt-negative {
+    color: #dc2626 !important; /* -₹10 in red bold */
+    font-weight: 700 !important;
+}
+
+.history-table .amt-positive {
+    color: #059669 !important;
+    font-weight: 700 !important;
+}
+
+.history-table .bal-col {
+    font-weight: 700 !important;
+    color: #0f172a !important;
+}
+
+.history-loading, .history-empty {
+    text-align: center !important;
+    padding: 32px !important;
+    color: #64748b !important;
+    font-size: 14px !important;
+}
 </style>
 <script>
 (function() {
@@ -194,9 +913,16 @@ html, body {
             </thead>
             <tbody>
                 {% for c in client_summaries %}
-                <tr>
+                <tr class="client-table-row">
                     <td>{{ forloop.counter }}</td>
-                    <td><b>{{ c.id }}</b></td>
+                    <td>
+                        <a href="?{% if client_query %}client_id={{ client_query|urlencode }}&{% endif %}{% if passenger_query %}passenger_name={{ passenger_query|urlencode }}&{% endif %}{% if from_date %}from_date={{ from_date|urlencode }}&{% endif %}{% if to_date %}to_date={{ to_date|urlencode }}&{% endif %}view_client={{ c.id|urlencode }}"
+                           class="client-id-link"
+                           title="Click to view details for {{ c.id }}"
+                           onclick="openClientPopup(event, '{{ c.id }}', '{{ c.available_points|floatformat:2 }}', '{{ c.pending_points|floatformat:2 }}', '{{ c.total_points|floatformat:2 }}', '{{ c.passenger_count }}', '{{ c.available_div10|floatformat:2 }}', '{{ c.pending_div10|floatformat:2 }}', '{{ c.total_div10|floatformat:2 }}');">
+                            {{ c.id }}
+                        </a>
+                    </td>
                     <td>{{ c.passenger_count }}</td>
                     <td><span class="badge {% if c.status == 'ACTIVE' %}success{% else %}pending{% endif %}">{{ c.status|default:"ACTIVE" }}</span></td>
                 </tr>
@@ -210,6 +936,542 @@ html, body {
 {% endblock %}
 
 {% block modals %}
+<!-- Client Details Modal (Image 1 Model) -->
+<div class="modal-overlay client-details-overlay" id="clientDetailsOverlay" role="presentation" style="{% if selected_client %}display:flex !important;{% else %}display:none !important;{% endif %}">
+    <section class="modal client-details-dialog" role="dialog" aria-modal="true" aria-labelledby="clientModalIdText">
+        <!-- Top bar: Client ID value on left, Close button on right -->
+        <div class="client-modal-header">
+            <div class="client-modal-header-left">
+                <span class="client-modal-label">Client ID</span>
+                <h2 class="client-modal-id-text" id="clientModalIdText">{{ selected_client.id|default:"" }}</h2>
+            </div>
+            <a class="client-modal-close-btn" id="clientModalCloseBtn" href="?{% if client_query %}client_id={{ client_query|urlencode }}&{% endif %}{% if passenger_query %}passenger_name={{ passenger_query|urlencode }}&{% endif %}{% if from_date %}from_date={{ from_date|urlencode }}&{% endif %}{% if to_date %}to_date={{ to_date|urlencode }}&{% endif %}close_client_modal=1" onclick="closeClientPopup(event);" aria-label="Close client details">
+                Close
+            </a>
+        </div>
+
+        <!-- Top Row: 3 Boxes (AVAILABLE AMOUNT, PENDING AMOUNT, TOTAL AMOUNT) with Zoom In/Out Pulse Animation -->
+        <div class="client-top-amount-grid">
+            <div class="client-amount-box box-green">
+                <span class="box-label">AVAILABLE AMOUNT</span>
+                <strong class="box-val" id="clientModalAvailDiv10">{{ selected_client.available_div10|default:0|floatformat:2 }}</strong>
+                <small class="box-sub">Points ÷ 10</small>
+            </div>
+            <div class="client-amount-box box-yellow">
+                <span class="box-label">PENDING AMOUNT</span>
+                <strong class="box-val" id="clientModalPendDiv10">{{ selected_client.pending_div10|default:0|floatformat:2 }}</strong>
+                <small class="box-sub">Points ÷ 10</small>
+            </div>
+            <div class="client-amount-box box-red">
+                <span class="box-label">TOTAL AMOUNT</span>
+                <strong class="box-val" id="clientModalTotalDiv10">{{ selected_client.total_div10|default:0|floatformat:2 }}</strong>
+                <small class="box-sub">Points ÷ 10</small>
+            </div>
+        </div>
+
+        <!-- Bottom Row: 4 Equal-size Boxes: Green, Yellow, Blue, Red - NO Zoom In/Out -->
+        <div class="client-bottom-points-grid">
+            <div class="client-points-box box-green">
+                <span class="box-label">AVAILABLE COUPON POINTS</span>
+                <strong class="box-val" id="clientModalAvailable">{{ selected_client.available_points|default:0|floatformat:2 }}</strong>
+                <small class="box-sub">Day after travel start</small>
+            </div>
+            <div class="client-points-box box-yellow">
+                <span class="box-label">PENDING COUPON POINTS</span>
+                <strong class="box-val" id="clientModalPending">{{ selected_client.pending_points|default:0|floatformat:2 }}</strong>
+                <small class="box-sub">Through travel start date</small>
+            </div>
+            <div class="client-points-box box-blue">
+                <span class="box-label">TOTAL COUPON POINTS</span>
+                <strong class="box-val" id="clientModalTotal">{{ selected_client.total_points|default:0|floatformat:2 }}</strong>
+                <small class="box-sub">Available + Pending</small>
+            </div>
+            <div class="client-points-box box-red">
+                <span class="box-label">TOTAL PASSENGERS</span>
+                <strong class="box-val" id="clientModalPassengers">{{ selected_client.passenger_count|default:0 }}</strong>
+                <small class="box-sub">Registered Passengers</small>
+            </div>
+        </div>
+
+        <!-- Bottom Action: History (Left, Red) & Generate Coupon Code (Right, Green) -->
+        <div class="client-modal-footer">
+            <button type="button" class="btn-client-history" id="clientModalHistoryBtn" onclick="openHistoryModal(event)">
+                History
+            </button>
+            <button type="button" class="btn-coupon-generate" id="clientModalCouponGenerateBtn" onclick="openGenerateCouponModal(event)">
+                Generate Coupon Code
+            </button>
+        </div>
+    </section>
+</div>
+
+<!-- TRANSACTION HISTORY POPUP MODAL (IMAGE 2) -->
+<div id="historyModalOverlay" class="gen-coupon-overlay" style="display: none;" role="presentation">
+    <section class="gen-coupon-dialog history-dialog" role="dialog" aria-modal="true" aria-labelledby="historyHeading">
+        <!-- Close Button -->
+        <button type="button" class="gen-coupon-close-btn" onclick="closeHistoryModal(event)" aria-label="Close history modal">
+            &times;
+        </button>
+
+        <!-- Header -->
+        <div class="history-modal-header">
+            <h2 class="history-title" id="historyHeading">Transaction history</h2>
+            <p class="history-subtitle">Every coupon you generate or redeem is listed here.</p>
+        </div>
+
+        <!-- Table Wrap -->
+        <div class="history-table-wrap">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Coupon code</th>
+                        <th>Amount</th>
+                        <th>Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody">
+                    <tr>
+                        <td colspan="5" class="history-loading">Loading transaction history...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<!-- GENERATE COUPON POPUP MODAL (IMAGE 2, 3, 4, 5) -->
+<div id="generateCouponOverlay" class="gen-coupon-overlay" style="display: none;" role="presentation">
+    <section class="gen-coupon-dialog" role="dialog" aria-modal="true" aria-labelledby="genCouponHeading">
+        <!-- Close Button -->
+        <button type="button" class="gen-coupon-close-btn" onclick="closeGenerateCouponModal(event)" aria-label="Close modal">
+            &times;
+        </button>
+
+        <!-- Header -->
+        <div class="gen-coupon-header">
+            <h2 class="gen-coupon-title" id="genCouponHeading">Generate a coupon</h2>
+            <div class="gen-coupon-header-amount-box">
+                <span class="gen-coupon-header-amt" id="genCouponHeaderAmount">₹{{ selected_client.available_div10|default:0|floatformat:2 }}</span>
+                <span class="gen-coupon-header-label">Available Amount</span>
+            </div>
+        </div>
+
+        <!-- Subtitle -->
+        <p class="gen-coupon-subtitle">
+            The amount you enter is taken out of your wallet and locked into a coupon code.
+        </p>
+
+        <!-- Input Row -->
+        <div class="gen-coupon-form-group">
+            <label class="gen-coupon-label" for="genCouponAmountInput">Amount (₹)</label>
+            <div class="gen-coupon-input-row">
+                <input type="number" 
+                       id="genCouponAmountInput" 
+                       class="gen-coupon-input" 
+                       placeholder="Enter amount, e.g. 25" 
+                       step="0.01" 
+                       min="0.01"
+                       autocomplete="off" />
+                <button type="button" class="gen-coupon-submit-btn" id="genCouponSubmitBtn" onclick="handleGenerateCouponSubmit()">
+                    Generate coupon
+                </button>
+            </div>
+            <!-- Feedback Message (Green for Success, Red for Error) -->
+            <div id="genCouponMessage" class="gen-coupon-msg" style="display: none;"></div>
+        </div>
+
+        <!-- Perforated Ticket Card (Image 3) - HIDDEN UNTIL GENERATED -->
+        <div id="genCouponTicketCard" class="gen-ticket-container" style="display: none !important;">
+            <!-- Left Side: Coupon Value -->
+            <div class="gen-ticket-left">
+                <span class="gen-ticket-lbl">Coupon value</span>
+                <span class="gen-ticket-val" id="genTicketValueDisplay">₹50</span>
+            </div>
+
+            <!-- Divider with circular cutout notches on outer edges -->
+            <div class="gen-ticket-divider-wrap">
+                <div class="gen-ticket-notch-top"></div>
+                <div class="gen-ticket-dashed-line"></div>
+                <div class="gen-ticket-notch-bottom"></div>
+            </div>
+
+            <!-- Right Side: Code & Copy button -->
+            <div class="gen-ticket-right">
+                <span class="gen-ticket-lbl">Code</span>
+                <strong class="gen-ticket-code" id="genTicketCodeDisplay">CPN-ARK3-GCJU</strong>
+                <button type="button" class="gen-ticket-copy-btn" id="genTicketCopyBtn" onclick="copyGenCouponCode()">
+                    Copy code
+                </button>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+var activeClientId = {% if selected_client %}"{{ selected_client.id|escapejs }}"{% else %}""{% endif %};
+var activeClientAvailAmount = {% if selected_client %}{{ selected_client.available_div10|default:0|floatformat:2 }}{% else %}0.00{% endif %};
+
+function openClientPopup(event, clientId, avail, pend, total, pax, avail10, pend10, total10) {
+    if (event) event.preventDefault();
+    activeClientId = clientId || '';
+    var parsedAvail = parseFloat(avail10);
+    activeClientAvailAmount = isNaN(parsedAvail) ? 0.0 : parsedAvail;
+
+    var idEl = document.getElementById('clientModalIdText');
+    if (idEl) idEl.textContent = clientId;
+    var avEl = document.getElementById('clientModalAvailable');
+    if (avEl) avEl.textContent = avail;
+    var peEl = document.getElementById('clientModalPending');
+    if (peEl) peEl.textContent = pend;
+    var toEl = document.getElementById('clientModalTotal');
+    if (toEl) toEl.textContent = total;
+    var pxEl = document.getElementById('clientModalPassengers');
+    if (pxEl) pxEl.textContent = pax;
+
+    var av10El = document.getElementById('clientModalAvailDiv10');
+    if (av10El) av10El.textContent = avail10;
+    var pe10El = document.getElementById('clientModalPendDiv10');
+    if (pe10El) pe10El.textContent = pend10;
+    var to10El = document.getElementById('clientModalTotalDiv10');
+    if (to10El) to10El.textContent = total10;
+
+    var headerAmt = document.getElementById('genCouponHeaderAmount');
+    if (headerAmt) {
+        headerAmt.textContent = '₹' + activeClientAvailAmount.toFixed(2);
+    }
+
+    var histBtn = document.getElementById('clientModalHistoryBtn');
+    if (histBtn) {
+        histBtn.href = "{% url 'ledger' %}" + (clientId ? "?client_id=" + encodeURIComponent(clientId) : "");
+    }
+
+    var overlay = document.getElementById('clientDetailsOverlay');
+    if (overlay) {
+        overlay.style.setProperty('display', 'flex', 'important');
+    }
+
+    try {
+        var currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('view_client', clientId);
+        currentUrl.searchParams.delete('close_client_modal');
+        window.history.pushState({}, '', currentUrl.toString());
+    } catch(e) {}
+}
+
+function closeClientPopup(event) {
+    if (event) event.preventDefault();
+    var overlay = document.getElementById('clientDetailsOverlay');
+    if (overlay) {
+        overlay.style.setProperty('display', 'none', 'important');
+    }
+    try {
+        var currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.delete('view_client');
+        currentUrl.searchParams.delete('close_client_modal');
+        window.history.replaceState({}, '', currentUrl.toString());
+    } catch(e) {}
+}
+
+function openGenerateCouponModal(event) {
+    if (event) event.preventDefault();
+    var modalAvailEl = document.getElementById('clientModalAvailDiv10');
+    if (modalAvailEl) {
+        var parsed = parseFloat(modalAvailEl.textContent.trim().replace(/,/g, ''));
+        if (!isNaN(parsed)) {
+            activeClientAvailAmount = parsed;
+        }
+    }
+    if (isNaN(activeClientAvailAmount) || activeClientAvailAmount === null || activeClientAvailAmount === undefined) {
+        activeClientAvailAmount = 0.0;
+    }
+    var headerAmt = document.getElementById('genCouponHeaderAmount');
+    if (headerAmt) {
+        headerAmt.textContent = '₹' + activeClientAvailAmount.toFixed(2);
+    }
+    var inputEl = document.getElementById('genCouponAmountInput');
+    if (inputEl) inputEl.value = '';
+
+    var msgEl = document.getElementById('genCouponMessage');
+    if (msgEl) {
+        msgEl.style.display = 'none';
+        msgEl.textContent = '';
+        msgEl.className = 'gen-coupon-msg';
+    }
+
+    // STRICTLY HIDE TICKET CARD ON MODAL OPEN
+    var ticketEl = document.getElementById('genCouponTicketCard');
+    if (ticketEl) {
+        ticketEl.classList.remove('is-visible');
+        ticketEl.style.setProperty('display', 'none', 'important');
+    }
+
+    var copyBtn = document.getElementById('genTicketCopyBtn');
+    if (copyBtn) {
+        copyBtn.textContent = 'Copy code';
+    }
+
+    var overlay = document.getElementById('generateCouponOverlay');
+    if (overlay) {
+        overlay.style.setProperty('display', 'flex', 'important');
+    }
+}
+
+function closeGenerateCouponModal(event) {
+    if (event) event.preventDefault();
+    var overlay = document.getElementById('generateCouponOverlay');
+    if (overlay) {
+        overlay.style.setProperty('display', 'none', 'important');
+    }
+}
+
+function generateCouponCodeStr() {
+    var letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    var digits = "23456789";
+    var allChars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    var result = "";
+    // Mix letters and digits
+    result += letters.charAt(Math.floor(Math.random() * letters.length));
+    result += digits.charAt(Math.floor(Math.random() * digits.length));
+    for (var i = 0; i < 5; i++) {
+        result += allChars.charAt(Math.floor(Math.random() * allChars.length));
+    }
+    result = result.split('').sort(function() { return 0.5 - Math.random(); }).join('');
+    return "CPN-" + result;
+}
+
+function getCsrfToken() {
+    var cookieVal = null;
+    if (document.cookie && document.cookie !== '') {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+            var cookie = cookies[i].trim();
+            if (cookie.substring(0, 10) === 'csrftoken=') {
+                cookieVal = decodeURIComponent(cookie.substring(10));
+                break;
+            }
+        }
+    }
+    return cookieVal;
+}
+
+function handleGenerateCouponSubmit() {
+    var inputEl = document.getElementById('genCouponAmountInput');
+    var msgEl = document.getElementById('genCouponMessage');
+    var ticketEl = document.getElementById('genCouponTicketCard');
+    var valDisplay = document.getElementById('genTicketValueDisplay');
+    var codeDisplay = document.getElementById('genTicketCodeDisplay');
+    var headerAmt = document.getElementById('genCouponHeaderAmount');
+
+    if (!inputEl || !msgEl || !ticketEl) return;
+
+    var rawVal = inputEl.value.trim();
+    var enteredAmount = parseFloat(rawVal);
+
+    if (!rawVal || isNaN(enteredAmount) || enteredAmount <= 0) {
+        msgEl.className = 'gen-coupon-msg text-error';
+        msgEl.textContent = 'Please enter a valid amount.';
+        msgEl.style.display = 'block';
+        ticketEl.classList.remove('is-visible');
+        ticketEl.style.setProperty('display', 'none', 'important');
+        return;
+    }
+
+    if (enteredAmount > activeClientAvailAmount) {
+        // Image 5: Error message
+        msgEl.className = 'gen-coupon-msg text-error';
+        var availDisplay = (activeClientAvailAmount % 1 === 0) ? activeClientAvailAmount : activeClientAvailAmount.toFixed(2);
+        msgEl.textContent = 'Not enough balance. You have ₹' + availDisplay + ' in your wallet.';
+        msgEl.style.display = 'block';
+        ticketEl.classList.remove('is-visible');
+        ticketEl.style.setProperty('display', 'none', 'important');
+        return;
+    }
+
+    // Success case: Image 3 & Image 4
+    var code = generateCouponCodeStr();
+
+    // Show immediate success feedback (Image 4)
+    msgEl.className = 'gen-coupon-msg text-success';
+    msgEl.textContent = 'Coupon generated. ₹' + enteredAmount + ' was deducted from your wallet.';
+    msgEl.style.display = 'block';
+
+    // Show ticket ONLY NOW (Image 3)
+    valDisplay.textContent = '₹' + (enteredAmount % 1 === 0 ? enteredAmount : enteredAmount.toFixed(2));
+    codeDisplay.textContent = code;
+    ticketEl.classList.add('is-visible');
+    ticketEl.style.setProperty('display', 'flex', 'important');
+
+    var copyBtn = document.getElementById('genTicketCopyBtn');
+    if (copyBtn) copyBtn.textContent = 'Copy code';
+
+    // Deduct wallet balance
+    activeClientAvailAmount = Math.max(0, activeClientAvailAmount - enteredAmount);
+    if (headerAmt) {
+        headerAmt.textContent = '₹' + activeClientAvailAmount.toFixed(2);
+    }
+
+    // Update client details popup in background
+    var av10El = document.getElementById('clientModalAvailDiv10');
+    if (av10El) av10El.textContent = activeClientAvailAmount.toFixed(2);
+    var avEl = document.getElementById('clientModalAvailable');
+    if (avEl) avEl.textContent = (activeClientAvailAmount * 10).toFixed(2);
+
+    // Call backend endpoint to persist in DB
+    try {
+        fetch('/coupons/generate-code/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken() || ''
+            },
+            body: JSON.stringify({
+                client_id: activeClientId,
+                amount: enteredAmount,
+                coupon_code: code
+            })
+        }).then(function(res) {
+            return res.json();
+        }).then(function(data) {
+            if (data && data.success) {
+                if (data.new_available !== undefined) {
+                    activeClientAvailAmount = parseFloat(data.new_available);
+                    if (headerAmt) headerAmt.textContent = '₹' + activeClientAvailAmount.toFixed(2);
+                    if (av10El) av10El.textContent = activeClientAvailAmount.toFixed(2);
+                    if (avEl) avEl.textContent = (activeClientAvailAmount * 10).toFixed(2);
+                }
+            }
+        }).catch(function(err) {
+            console.warn('Backend sync deferred:', err);
+        });
+    } catch(e) {}
+}
+
+function copyGenCouponCode() {
+    var codeEl = document.getElementById('genTicketCodeDisplay');
+    var btnEl = document.getElementById('genTicketCopyBtn');
+    if (!codeEl) return;
+    var code = codeEl.textContent.trim();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function() {
+            if (btnEl) {
+                btnEl.textContent = 'Copied!';
+                setTimeout(function() {
+                    btnEl.textContent = 'Copy code';
+                }, 2000);
+            }
+        });
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        if (btnEl) {
+            btnEl.textContent = 'Copied!';
+            setTimeout(function() {
+                btnEl.textContent = 'Copy code';
+            }, 2000);
+        }
+    }
+}
+
+function openHistoryModal(event) {
+    if (event) event.preventDefault();
+    var tbody = document.getElementById('historyTableBody');
+    if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="5" class="history-loading">Loading transaction history...</td></tr>';
+    }
+    var overlay = document.getElementById('historyModalOverlay');
+    if (overlay) {
+        overlay.style.setProperty('display', 'flex', 'important');
+    }
+
+    var cid = activeClientId || 'CL-1001';
+    fetch('/coupons/history/?client_id=' + encodeURIComponent(cid))
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            if (!tbody) return;
+            if (data && data.success && data.transactions && data.transactions.length > 0) {
+                var rowsHtml = '';
+                data.transactions.forEach(function(tx) {
+                    var isNeg = tx.amount && tx.amount.indexOf('-') !== -1;
+                    rowsHtml += '<tr>' +
+                        '<td>' + (tx.date || '-') + '</td>' +
+                        '<td>' + (tx.type || '-') + '</td>' +
+                        '<td>' + (tx.coupon_code || '-') + '</td>' +
+                        '<td class="' + (isNeg ? 'amt-negative' : 'amt-positive') + '">' + (tx.amount || '-') + '</td>' +
+                        '<td class="bal-col">' + (tx.balance || '-') + '</td>' +
+                        '</tr>';
+                });
+                tbody.innerHTML = rowsHtml;
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="history-empty">No transactions yet. Generate a coupon to see history.</td></tr>';
+            }
+        })
+        .catch(function(err) {
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="5" class="history-empty">Failed to load transaction history.</td></tr>';
+            }
+        });
+}
+
+function closeHistoryModal(event) {
+    if (event) event.preventDefault();
+    var overlay = document.getElementById('historyModalOverlay');
+    if (overlay) {
+        overlay.style.setProperty('display', 'none', 'important');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var clientOverlay = document.getElementById('clientDetailsOverlay');
+    if (clientOverlay) {
+        clientOverlay.addEventListener('click', function(e) {
+            if (e.target === clientOverlay) {
+                closeClientPopup(e);
+            }
+        });
+    }
+
+    var genOverlay = document.getElementById('generateCouponOverlay');
+    if (genOverlay) {
+        genOverlay.addEventListener('click', function(e) {
+            if (e.target === genOverlay) {
+                closeGenerateCouponModal(e);
+            }
+        });
+    }
+
+    var histOverlay = document.getElementById('historyModalOverlay');
+    if (histOverlay) {
+        histOverlay.addEventListener('click', function(e) {
+            if (e.target === histOverlay) {
+                closeHistoryModal(e);
+            }
+        });
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            var histModal = document.getElementById('historyModalOverlay');
+            if (histModal && histModal.style.display !== 'none' && histModal.style.display !== '') {
+                closeHistoryModal(e);
+                return;
+            }
+            var genModal = document.getElementById('generateCouponOverlay');
+            if (genModal && genModal.style.display !== 'none' && genModal.style.display !== '') {
+                closeGenerateCouponModal(e);
+            } else {
+                closeClientPopup(e);
+            }
+        }
+    });
+});
+</script>
+
 {% if selected_booking %}
 <div class="modal-overlay show passenger-details-overlay" role="presentation">
     <section class="modal wide passenger-details-dialog" role="dialog" aria-modal="true" aria-labelledby="passengerDetailsTitle">

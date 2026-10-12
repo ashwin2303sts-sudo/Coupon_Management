@@ -96,6 +96,7 @@ class Booking(models.Model):
     STATUS_CHOICES = [
         ("Confirmed", "Confirmed"),
         ("Cancelled", "Cancelled"),
+        ("Rescheduled", "Rescheduled"),
     ]
 
     id = models.BigIntegerField(

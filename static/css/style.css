@@ -825,7 +825,8 @@ td { padding:15px; border-bottom:1px solid #e3e7ee; font-size:13px; vertical-ali
 .status-pill.pill-completed { background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; }
 .status-pill.pill-pending { background:#fef3c7; color:#d97706; border:1px solid #fde68a; }
 .status-pill.pill-cancelled { background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; }
-.status-pill:not(.pill-completed):not(.pill-pending):not(.pill-cancelled) { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+.status-pill.pill-rescheduled { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+.status-pill:not(.pill-completed):not(.pill-pending):not(.pill-cancelled):not(.pill-rescheduled) { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
 
 .rdm-no-records { text-align:center; padding:35px 20px; color:#78869b; font-size:13px; }
 

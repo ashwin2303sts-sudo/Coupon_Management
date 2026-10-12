@@ -10,6 +10,7 @@ from django.core.paginator import Paginator
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from django.utils import timezone
 
@@ -166,7 +167,7 @@ def _coupon_status_for_travel(coupon, bookings=None):
     )
     if str((booking or {}).get("status", "")).strip().casefold() == "cancelled":
         return "EXPIRED"
-    if coupon.get("status") in {"REDEEMED", "EXPIRED"}:
+    if coupon.get("status") in {"REDEEMED", "EXPIRED", "GENERATED"}:
         return coupon["status"]
     if coupon.get("is_released") or coupon.get("status") == "AVAILABLE":
         return "AVAILABLE"
@@ -196,29 +197,49 @@ def _resolve_booking(identifier):
 def auto_release_coupons():
     coupons = read("coupons")
     bookings = read("bookings")
-    changed = False
+    booking_map = {str(b.get("booking_id")): b for b in bookings if b.get("booking_id")}
+    changed_coupons = []
     for c in coupons:
+        if c.get("status") == "GENERATED" or not c.get("booking_id"):
+            continue
         status = _coupon_status_for_travel(c, bookings)
         points = _coupon_points(c, bookings)
-        booking = next(
-            (b for b in bookings if str(b.get("booking_id")) == str(c.get("booking_id"))),
-            None,
-        )
+        booking = booking_map.get(str(c.get("booking_id")))
+        item_changed = False
         if c.get("points") != points:
-            c["points"] = points; changed = True
+            c["points"] = points
+            c["amount"] = points
+            c["coupon_amount"] = points / 10
+            item_changed = True
         if c.get("status") != status and (
             c.get("status") != "REDEEMED" or status == "EXPIRED"
         ):
-            c["status"] = status; changed = True
+            c["status"] = status
+            item_changed = True
         released = status == "AVAILABLE" or c.get("status") == "REDEEMED"
         if bool(c.get("is_released")) != released:
-            c["is_released"] = released; changed = True
+            c["is_released"] = released
+            item_changed = True
         if booking:
-            for key, value in (("travel_start_date", booking.get("travel_date", "")), ("travel_end_date", booking.get("end_date", "")), ("passenger_name", booking.get("passenger_name", ""))):
-                if c.get(key) != value:
-                    c[key] = value; changed = True
-    if changed:
-        write("coupons", coupons)
+            for key, field_val in (("travel_start_date", booking.get("travel_date", "")), ("travel_end_date", booking.get("end_date", "")), ("passenger_name", booking.get("passenger_name", ""))):
+                if c.get(key) != field_val:
+                    c[key] = field_val
+                    item_changed = True
+        if item_changed:
+            changed_coupons.append(c)
+
+    if changed_coupons:
+        for c in changed_coupons:
+            update_data = {
+                "amount": decimal_value(c.get("points") or c.get("amount")),
+                "status": c.get("status", "PENDING"),
+                "is_released": bool(c.get("is_released")),
+            }
+            if c.get("passenger_name"):
+                update_data["passenger_name"] = c.get("passenger_name")
+            if c.get("travel_start_date"):
+                update_data["travel_date"] = date_value(c.get("travel_start_date"))
+            Coupon.objects.filter(id=c.get("id")).update(**update_data)
     return coupons
 
 def page_context(request, **kwargs):
@@ -391,18 +412,52 @@ def client_portal(request):
                 for b in filtered_client_bookings
             }
             filtered_client_pax_keys.discard("")
-            client_summaries.append({
-                **client,
-                "passenger_count": len(filtered_client_pax_keys),
-                "total_passenger_count": len(client_passenger_keys),
-            })
+            pax_count = len(filtered_client_pax_keys)
         else:
-            client_summaries.append({**client, "passenger_count": len(client_passenger_keys), "total_passenger_count": len(client_passenger_keys)})
+            filtered_client_bookings = client_bookings
+            pax_count = len(client_passenger_keys)
+
+        client_id_val = client.get("id")
+        client_coupons = [cp for cp in all_coupons if str(cp.get("customer_id") or "").strip() == str(client_id_val or "").strip()]
+        if date_filter_active:
+            filtered_client_b_ids = {str(b.get("booking_id")) for b in filtered_client_bookings}
+            client_filtered_coupons = [cp for cp in client_coupons if str(cp.get("booking_id")) in filtered_client_b_ids]
+        else:
+            client_filtered_coupons = client_coupons
+
+        c_avail = sum(_coupon_points(cp, all_bookings) for cp in client_filtered_coupons if cp.get("status") == "AVAILABLE")
+        c_pend = sum(_coupon_points(cp, all_bookings) for cp in client_filtered_coupons if cp.get("status") == "PENDING")
+        c_total = c_avail + c_pend
+        c_avail_div10 = round(c_avail / 10.0, 2)
+        c_pend_div10 = round(c_pend / 10.0, 2)
+        c_total_div10 = round(c_total / 10.0, 2)
+
+        client_summaries.append({
+            **client,
+            "passenger_count": pax_count,
+            "total_passenger_count": len(client_passenger_keys),
+            "available_points": c_avail,
+            "pending_points": c_pend,
+            "total_points": c_total,
+            "available_div10": c_avail_div10,
+            "pending_div10": c_pend_div10,
+            "total_div10": c_total_div10,
+        })
+    all_client_summaries = list(client_summaries)
     if client_query:
         client_summaries = [
             client for client in client_summaries
             if client_query.casefold() in str(client.get("id", "")).casefold()
         ]
+
+    view_client_param = request.GET.get("view_client", "").strip()
+    close_client_modal = request.GET.get("close_client_modal", "").strip()
+    selected_client = None
+    if view_client_param and not close_client_modal:
+        selected_client = next(
+            (c for c in all_client_summaries if str(c.get("id", "")).casefold() == view_client_param.casefold()),
+            None
+        )
 
     passenger_query = request.GET.get("passenger_name", "").strip()
     passenger_matches = _filter_passengers_by_name(bookings, passenger_query)
@@ -466,6 +521,8 @@ def client_portal(request):
         from_date=from_date_str,
         to_date=to_date_str,
         date_filter_active=date_filter_active,
+        selected_client=selected_client,
+        view_client_param=view_client_param,
     ))
 
 
@@ -587,7 +644,13 @@ def bookings(request):
         booking.setdefault("travel_type", "")
         booking.setdefault("airline", "")
         booking.setdefault("fare_type", "ANY CLASS")
-        booking["status"] = "Cancelled" if (str(booking.get("status", "")).strip().lower() == "cancelled" or money(booking.get("net_amount", 0)) < 0) else "Confirmed"
+        b_stat = str(booking.get("status", "")).strip().lower()
+        if b_stat == "cancelled" or money(booking.get("net_amount", 0)) < 0:
+            booking["status"] = "Cancelled"
+        elif b_stat == "rescheduled":
+            booking["status"] = "Rescheduled"
+        else:
+            booking["status"] = "Confirmed"
     if q:
         searchable_fields = ("s_pnr", "ticket_no", "passenger_name", "airline", "sector", "status")
         data = [
@@ -997,6 +1060,151 @@ def reverse_coupon(request):
     messages.success(request, f"Coupon reversed: ₹{money(restored_amount):,.2f} added back to Net Amount and {money(restored_points):,.2f} points restored.")
     return redirect("coupons")
 
+
+@csrf_exempt
+@require_POST
+def generate_coupon_code(request):
+    try:
+        data = json.loads(request.body.decode('utf-8')) if request.body else request.POST
+    except Exception:
+        data = request.POST
+
+    client_id = data.get("client_id", "").strip()
+    amount_str = str(data.get("amount", "")).strip().replace(",", "").replace("₹", "")
+    coupon_code = data.get("coupon_code", "").strip()
+
+    try:
+        amount = Decimal(amount_str)
+        if amount <= 0:
+            return JsonResponse({"success": False, "error": "Please enter a valid amount."}, status=400)
+    except (InvalidOperation, TypeError, ValueError):
+        return JsonResponse({"success": False, "error": "Please enter a valid amount."}, status=400)
+
+    customer = Customer.objects.filter(id=client_id).first()
+    if not customer:
+        return JsonResponse({"success": False, "error": "Customer not found."}, status=404)
+
+    # Compute available amount for client from AVAILABLE coupons
+    available_coupons = list(Coupon.objects.filter(customer=customer, status="AVAILABLE").order_by("created_at"))
+    total_avail_points = sum(decimal_value(c.amount) for c in available_coupons)
+    total_avail_amount = (total_avail_points / Decimal(10)).quantize(Decimal("0.01"))
+
+    if amount > total_avail_amount:
+        return JsonResponse({
+            "success": False,
+            "error": f"Not enough balance. You have ₹{total_avail_amount} in your wallet."
+        }, status=400)
+
+    if not coupon_code:
+        import random, string
+        chars = string.ascii_uppercase + string.digits
+        suffix = ''.join(random.choices(chars, k=7))
+        coupon_code = f"CPN-{suffix}"
+
+    points_to_deduct = (amount * Decimal(10)).quantize(Decimal("0.01"))
+
+    with transaction.atomic():
+        remaining = points_to_deduct
+        for cp in available_coupons:
+            cp_amount = decimal_value(cp.amount)
+            if cp_amount <= remaining:
+                remaining -= cp_amount
+                cp.amount = Decimal(0)
+                cp.redeemed_amount = decimal_value(cp.redeemed_amount) + cp_amount
+                cp.status = "REDEEMED"
+                cp.save(update_fields=["amount", "redeemed_amount", "status", "updated_at"])
+            else:
+                cp.amount = cp_amount - remaining
+                cp.redeemed_amount = decimal_value(cp.redeemed_amount) + remaining
+                cp.save(update_fields=["amount", "redeemed_amount", "updated_at"])
+                remaining = Decimal(0)
+                break
+
+        # Create new Coupon record locked into coupon code
+        new_coupon_id = new_id("CPN")
+        Coupon.objects.create(
+            id=new_coupon_id,
+            coupon_code=coupon_code,
+            customer=customer,
+            customer_name=customer.name,
+            amount=points_to_deduct,
+            status="GENERATED",
+            is_released=False,
+            available_date=timezone.localdate(),
+            redeemed_amount=0,
+        )
+
+        # Create Ledger record
+        txn_id = new_id("TXN-GEN")
+        Ledger.objects.create(
+            id=txn_id,
+            txn_id=txn_id,
+            customer=customer,
+            customer_name=customer.name,
+            coupon_code=coupon_code,
+            type="Generated",
+            amount=-amount,
+            status="SUCCESS",
+            date=timezone.localdate(),
+        )
+
+    new_avail_amount = max(Decimal(0), total_avail_amount - amount)
+    return JsonResponse({
+        "success": True,
+        "coupon_code": coupon_code,
+        "amount": float(amount),
+        "new_available": float(new_avail_amount),
+    })
+
+
+def customer_coupon_history(request):
+    client_id = request.GET.get("client_id", "").strip()
+    if not client_id:
+        return JsonResponse({"success": False, "error": "Client ID is required."}, status=400)
+    customer = Customer.objects.filter(id=client_id).first()
+    if not customer:
+        return JsonResponse({"success": False, "error": "Customer not found."}, status=404)
+
+    # All generated / redeemed ledger entries for this customer
+    entries = list(Ledger.objects.filter(
+        customer=customer,
+        type__in=["Generated", "Coupon Generated", "Redeemed", "Coupon Redeemed"]
+    ).order_by("date", "created_at"))
+
+    # Current wallet available balance
+    avail_coupons = list(Coupon.objects.filter(customer=customer, status="AVAILABLE"))
+    current_avail_points = sum(decimal_value(c.amount) for c in avail_coupons)
+    current_avail_amount = (current_avail_points / Decimal(10)).quantize(Decimal("0.01"))
+
+    # Compute running balance working backwards from current_avail_amount
+    results = []
+    running_bal = current_avail_amount
+    for entry in reversed(entries):
+        amt = decimal_value(entry.amount) # negative for Generated (e.g. -10)
+        d = entry.date
+        date_str = d.strftime("%d %b, %Y") if d else ""
+        type_str = "Generated" if "generat" in entry.type.lower() else ("Redeemed" if "redeem" in entry.type.lower() else entry.type)
+        amt_str = f"-₹{abs(amt):,.2f}".replace(".00", "") if amt < 0 else f"+₹{amt:,.2f}".replace(".00", "")
+        bal_str = f"₹{running_bal:,.2f}".replace(".00", "")
+
+        results.append({
+            "date": date_str,
+            "type": type_str,
+            "coupon_code": entry.coupon_code or "-",
+            "amount": amt_str,
+            "balance": bal_str,
+        })
+        # Undo this transaction to find previous balance:
+        running_bal = max(Decimal(0), running_bal - amt)
+
+    return JsonResponse({
+        "success": True,
+        "client_id": client_id,
+        "current_balance": f"₹{current_avail_amount:,.2f}",
+        "transactions": results,
+    })
+
+
 @admin_required
 def redemptions(request):
     raw_redemptions = read("redemptions")
@@ -1167,7 +1375,10 @@ def ledger(request):
     Shows: Customer, Booking Ref, Action (Coupon Earned / Coupon Redeemed),
     Coupon Amount, Coupon Code, Status.
     """
-    ledger_entries = read("ledger")
+    ledger_entries = [
+        entry for entry in read("ledger")
+        if str(entry.get("type", "")).strip().casefold() not in ["generated", "coupon generated"]
+    ]
 
     transactions = []
     for entry in ledger_entries:
