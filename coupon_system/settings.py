@@ -71,12 +71,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "coupon_system.wsgi.application"
 
-# MySQL / MariaDB / TiDB Cloud settings:
-# TiDB Cloud is the primary database for both cloud (Render) and local usage.
-default_host = "gateway01.ap-northeast-1.prod.aws.tidbcloud.com"
-default_port = "4000"
-default_user = "46kkFoCWPfKm8RH.root"
-default_pass = "F2I9tzFlrCX8WHGP"
+# MySQL / MariaDB / Local XAMPP settings:
+default_host = "127.0.0.1"
+default_port = "3306"
+default_user = "root"
+default_pass = ""
 default_db = "coupon_management"
 
 mysql_host = os.getenv("MYSQL_HOST", default_host).strip()
