@@ -21,7 +21,7 @@
 <div><label class="required-label">Airline Name *</label><input name="airline" list="airlineList" placeholder="Type or select Airline Name" autocomplete="off" required><datalist id="airlineList">{% for x in airlines %}<option value="{{ x }}"></option>{% endfor %}</datalist></div>
 <div><label class="required-label">Class Type *</label><select name="fare_type" required>{% for x in airline_types %}<option value="{{ x }}">{{ x }}</option>{% endfor %}</select></div>
 <div><label class="required-label">Airline PNR *</label><input name="airline_pnr" placeholder="Enter Airline PNR" required></div>
-<div><label class="required-label">Net Amount *</label><input id="addAmount" type="number" step="0.01" name="net_amount" placeholder="Enter Base Net Amount" required><small class="discount-hint" id="addDiscountHint">Final amount will be calculated from Rules.</small></div>
+<div><label class="required-label">Net Amount *</label><input id="addAmount" type="number" step="0.01" name="net_amount" placeholder="Enter Net Amount" required><small class="discount-hint" id="addDiscountHint">Points will be calculated from Rules.</small></div>
 <div><label class="required-label">Travel Start Date *</label><input type="date" name="travel_date" required></div>
 <div><label class="required-label">Travel End Date *</label><input type="date" name="end_date" required></div>
 <div><label class="required-label">Booking Date *</label><input type="date" name="booked_date" value="{{ today }}" required></div>
@@ -39,7 +39,7 @@
 <div><label class="required-label">Airline Name *</label><input id="editAirline" name="airline" list="airlineList" placeholder="Type or select Airline Name" required></div>
 <div><label class="required-label">Class Type *</label><select id="editFareType" name="fare_type" required>{% for x in airline_types %}<option>{{ x }}</option>{% endfor %}</select></div>
 <div><label class="required-label">Airline PNR *</label><input id="editAirlinePnr" name="airline_pnr" placeholder="Enter Airline PNR" required></div>
-<div><label class="required-label">Net Amount *</label><input id="editAmount" type="number" step="0.01" name="net_amount" placeholder="Enter Base Net Amount" required></div>
+<div><label class="required-label">Net Amount *</label><input id="editAmount" type="number" step="0.01" name="net_amount" placeholder="Enter Net Amount" required></div>
 <div><label class="required-label">Travel Start Date *</label><input id="editTravel" type="date" name="travel_date" required></div>
 <div><label class="required-label">Travel End Date *</label><input id="editEndDate" type="date" name="end_date" required></div>
 <div><label class="required-label">Booking Date *</label><input id="editBooked" type="date" name="booked_date" required></div>
@@ -95,8 +95,8 @@ function updateAddDiscount(){
  const airline=document.querySelector('#bookingAddForm [name="airline"]').value, type=document.querySelector('#bookingAddForm [name="fare_type"]').value, r=findRule(airline,type,isNaN(amount)?0:amount);
  const pct=r?parseFloat(r.percentage||0):0;
  const amtVal=isNaN(amount)?0:amount;
- const final=Math.max(0,amtVal-(amtVal*pct/100));
- document.getElementById('addDiscountHint').textContent=r?`Rule applied: ${pct}% discount → Final Net Amount ₹${final.toFixed(2)}`:'No matching Rule → Final Net Amount is unchanged.';
+ const points=(amtVal*pct/100);
+ document.getElementById('addDiscountHint').textContent=r?`Rule matched: ${pct}% → ${points.toFixed(2)} Points (Net Amount: ₹${amtVal.toFixed(2)})`:'No matching Rule → 0 Points (Net Amount: ₹'+amtVal.toFixed(2)+')';
 }
 document.getElementById('addAmount').addEventListener('input',updateAddDiscount);
 document.querySelector('#bookingAddForm [name="airline"]').addEventListener('input',updateAddDiscount);

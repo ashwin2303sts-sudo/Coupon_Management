@@ -10,7 +10,7 @@ load_dotenv(BASE_DIR / ".env", override=True)
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key-for-production")
 
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
 def env_list(name, default=""):
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
@@ -72,7 +72,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "coupon_system.wsgi.application"
 
 # MySQL / MariaDB / TiDB Cloud settings:
-# TiDB Cloud is the primary database for both cloud and local usage.
+# TiDB Cloud is the primary database for both cloud (Render) and local usage.
 default_host = "gateway01.ap-northeast-1.prod.aws.tidbcloud.com"
 default_port = "4000"
 default_user = "46kkFoCWPfKm8RH.root"
@@ -88,7 +88,11 @@ mysql_db = os.getenv("MYSQL_DATABASE", default_db).strip()
 db_options = {"charset": "utf8mb4"}
 
 if mysql_host not in ("127.0.0.1", "localhost"):
-    db_options["ssl"] = {"ssl": True}
+    try:
+        import pymysql
+        db_options["ssl"] = {"ssl": True}
+    except ImportError:
+        db_options["ssl_mode"] = os.getenv("MYSQL_SSL_MODE", "REQUIRED").strip()
 
 DATABASES = {
     "default": {

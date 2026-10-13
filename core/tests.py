@@ -54,7 +54,7 @@ class FlatPriceRuleTests(SimpleTestCase):
                     amount, "AirAsia", "Economy Class"
                 )
                 self.assertEqual(percentage, Decimal("10"))
-                self.assertEqual(net_amount, amount * Decimal("0.9"))
+                self.assertEqual(net_amount, amount.quantize(Decimal("0.01")))
 
     @patch("core.views.read")
     def test_amount_outside_range_uses_unbounded_fallback_rule(self, read_rules):
@@ -80,7 +80,28 @@ class FlatPriceRuleTests(SimpleTestCase):
         )
 
         self.assertEqual(percentage, Decimal("3"))
-        self.assertEqual(net_amount, Decimal("48500.97"))
+        self.assertEqual(net_amount, Decimal("50001.00"))
+
+    @patch("core.views.read")
+    def test_points_calculation_from_rule_percentage(self, read_rules):
+        # Example from user: Amount 4000, Rule 7% -> 280 Points
+        read_rules.return_value = [
+            {
+                "airline": "ANY AIRLINE",
+                "fare_type": "ANY CLASS",
+                "flat_price": "",
+                "percentage": 7,
+                "status": "Active",
+            },
+        ]
+        from core.views import calculate_coupon
+        booking = {
+            "net_amount": 4000,
+            "airline": "Air India",
+            "fare_type": "Economy Class",
+        }
+        points, rule = calculate_coupon(booking)
+        self.assertEqual(points, 280.0)
 
     def test_flat_price_range_rejects_reversed_bounds(self):
         with self.assertRaises(ValueError):
@@ -829,10 +850,11 @@ class CouponAvailabilityTimingTests(SimpleTestCase):
                 f"Failed for {travel_date_str}: {description} (got {actual_status}, expected {expected_status})",
             )
 
+    @patch("core.views.Coupon.objects.filter")
     @patch("core.views.timezone.localdate", return_value=date(2026, 10, 8))
     @patch("core.views.write")
     @patch("core.views.read")
-    def test_auto_release_coupons_updates_only_past_travel_dates(self, mock_read, mock_write, _localdate):
+    def test_auto_release_coupons_updates_only_past_travel_dates(self, mock_read, mock_write, _localdate, mock_filter):
         # Today is 2026-10-08
         mock_read.side_effect = lambda key: {
             "coupons": [

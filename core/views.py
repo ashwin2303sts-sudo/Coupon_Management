@@ -131,19 +131,20 @@ def calculate_discounted_net(base_amount, airline, airline_type):
         return base.quantize(decimal_value("0.01")), decimal_value(0), None
     rule = _find_matching_rule(airline, airline_type, base)
     percentage = decimal_value(rule.get("percentage")) if rule else decimal_value(0)
-    discount = (base * percentage) / decimal_value(100)
-    final_amount = max(decimal_value(0), base - discount).quantize(decimal_value("0.01"))
+    final_amount = base.quantize(decimal_value("0.01"))
     return final_amount, percentage, rule
 
 
 def calculate_coupon(booking):
     amount = money(booking.get("net_amount"))
-    points = round(amount / 100, 2)
-    return points, _find_matching_rule(
+    rule = _find_matching_rule(
         booking.get("airline"),
         booking.get("fare_type"),
         booking.get("base_amount", amount),
     )
+    pct = decimal_value(rule.get("percentage")) if rule else decimal_value(booking.get("discount_percentage", 0))
+    points = round(float((decimal_value(amount) * pct) / decimal_value(100)), 2)
+    return points, rule
 
 
 def _coupon_points(coupon, bookings=None):
@@ -155,7 +156,18 @@ def _coupon_points(coupon, bookings=None):
         (b for b in bookings if str(b.get("booking_id")) == str(coupon.get("booking_id"))),
         None,
     )
-    return money(booking.get("net_amount")) / 100 if booking else 0.0
+    if not booking:
+        return 0.0
+    amount = money(booking.get("net_amount"))
+    pct = money(booking.get("discount_percentage", 0))
+    if pct <= 0:
+        rule = _find_matching_rule(
+            booking.get("airline"),
+            booking.get("fare_type"),
+            booking.get("base_amount", amount),
+        )
+        pct = money(rule.get("percentage")) if rule else 0.0
+    return round((amount * pct) / 100, 2)
 
 
 def _coupon_status_for_travel(coupon, bookings=None):
@@ -778,7 +790,8 @@ def add_booking(request):
         is_auto=False,
         is_manual=True,
     )
-    messages.success(request, f"Booking added successfully (Status: {status_val}). Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
+    points_earned = ((decimal_value(parsed_net) * decimal_value(discount_pct)) / Decimal("100")).quantize(Decimal("0.01"))
+    messages.success(request, f"Booking added successfully (Status: {status_val}). Net Amount: ₹{money(final_net):,.2f}" + (f" (Rule: {money(discount_pct):g}% → {money(points_earned):,.2f} Points)" if matched_rule else ""))
     return redirect("bookings")
 
 
@@ -852,7 +865,8 @@ def edit_booking(request):
     else:
         booking.status = status_val
         booking.save()
-    messages.success(request, f"Booking {booking.pnr} updated successfully (Status: {status_val}). Final Net Amount: ₹{money(final_net):,.2f}" + (f" ({money(discount_pct):g}% discount)" if matched_rule else ""))
+    points_earned = ((decimal_value(parsed_net) * decimal_value(discount_pct)) / Decimal("100")).quantize(Decimal("0.01"))
+    messages.success(request, f"Booking {booking.pnr} updated successfully (Status: {status_val}). Net Amount: ₹{money(final_net):,.2f}" + (f" (Rule: {money(discount_pct):g}% → {money(points_earned):,.2f} Points)" if matched_rule else ""))
     return redirect("bookings")
 
 
@@ -881,15 +895,23 @@ def coupons(request):
     # Data used by the popup auto-fill.
     passenger_records = []
     for b in bookings_data:
+        b_net = money(b.get("net_amount"))
+        b_pct = money(b.get("discount_percentage", 0))
+        if b_pct <= 0:
+            rule = _find_matching_rule(b.get("airline"), b.get("fare_type"), b.get("base_amount", b_net))
+            b_pct = money(rule.get("percentage")) if rule else 0.0
+        expected_points = round((b_net * b_pct) / 100, 2)
         passenger_records.append({
             "booking_id": str(b.get("booking_id", "")),
             "passenger_name": b.get("passenger_name", ""),
             "client_id": b.get("client_id", ""), "client_name": b.get("client", ""),
-            "s_pnr": b.get("s_pnr", ""), "ticket_no": b.get("ticket_no", ""), "net_amount": money(b.get("net_amount")),
+            "s_pnr": b.get("s_pnr", ""), "ticket_no": b.get("ticket_no", ""), "net_amount": b_net,
             "sector": b.get("sector", ""), "airline": b.get("airline", ""),
             "fare_type": b.get("fare_type", ""), "airline_pnr": b.get("airline_pnr", ""),
             "travel_date": b.get("travel_date", ""), "end_date": b.get("end_date", ""),
             "booked_date": b.get("booked_date", ""),
+            "points": expected_points,
+            "discount_percentage": b_pct,
         })
     coupon_records_for_ui = [
         {
@@ -925,11 +947,15 @@ def earn_coupon(request):
         existing = Coupon.objects.filter(booking=booking).first()
         messages.info(request, f"A coupon already exists for {booking.pnr} ({existing.status}).")
         return redirect("coupons")
-    points = (decimal_value(booking.net_amount) / decimal_value(100)).quantize(
+    pct = decimal_value(booking.discount_percentage)
+    if pct <= 0:
+        rule = _find_matching_rule(booking.airline, booking.fare_type, booking.net_amount)
+        pct = decimal_value(rule.get("percentage")) if rule else decimal_value(0)
+    points = ((decimal_value(booking.net_amount) * pct) / decimal_value(100)).quantize(
         decimal_value("0.01")
     )
     if points <= 0:
-        messages.error(request, "Booking Net Amount must be greater than ₹0.")
+        messages.error(request, "Points calculated from Rules must be greater than 0.")
         return redirect("coupons")
     available_now = bool(booking.travel_date and timezone.localdate() > booking.travel_date)
     status = "AVAILABLE" if available_now else "PENDING"
@@ -1786,7 +1812,12 @@ def excel_upload(request):
                     if booking.pk in bookings_with_coupons:
                         continue
 
-                    points = (decimal_value(booking.net_amount) / Decimal("100")).quantize(
+                    pct = decimal_value(booking.discount_percentage)
+                    if pct <= 0:
+                        rule = _find_matching_rule(booking.airline, booking.fare_type, booking.net_amount)
+                        pct = decimal_value(rule.get("percentage")) if rule else Decimal("0")
+
+                    points = ((decimal_value(booking.net_amount) * pct) / Decimal("100")).quantize(
                         Decimal("0.01")
                     )
                     if points <= 0:

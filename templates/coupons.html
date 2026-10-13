@@ -58,7 +58,7 @@
 </div>
 
 <div class="card coupon-records-card">
-    <div class="card-head"><h2>Coupon Records</h2><span class="count-pill">POINTS = NET AMOUNT ÷ 100</span></div>
+    <div class="card-head"><h2>Coupon Records</h2><span class="count-pill">POINTS = NET AMOUNT × RULE %</span></div>
     <div class="table-wrap">
         <table>
             <thead><tr><th>PASSENGER NAME</th><th>CLIENT ID</th><th>S PNR</th><th>TICKET NO</th><th>POINTS</th><th>COUPON AMOUNT</th><th>STATUS</th><th>TRAVEL START</th><th>TRAVEL END</th></tr></thead>
@@ -160,7 +160,10 @@ function fillPassenger(name,prefix){
         const element=document.getElementById(prefix+field);
         if(element)element.textContent=value||'-';
     });
-    const points=passengerCoupons.reduce((total,coupon)=>total+Number(coupon.points||0),0);
+    let points=passengerCoupons.reduce((total,coupon)=>total+Number(coupon.points||0),0);
+    if(passengerCoupons.length===0 && prefix==='earn' && passenger){
+        points=Number(passenger.points||0);
+    }
     const available=passengerCoupons.filter(coupon=>coupon.status==='AVAILABLE').reduce((total,coupon)=>total+Number(coupon.points||0),0);
     const pointsElement=document.getElementById(prefix+'Points');
     const amountElement=document.getElementById(prefix+'Amount');
