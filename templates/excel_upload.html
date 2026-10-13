@@ -26,7 +26,7 @@
 
     <div class="excel-upload-panel right-panel">
         <div class="panel-header">
-            <h2>15-Column Add Booking Format</h2>
+            <h2>16-Column Add Booking Format</h2>
         </div>
 
         <div class="table-wrap">
@@ -53,12 +53,13 @@
                     <tr><td class="required">Travel Start Date</td><td>Date</td><td>2026-09-05</td></tr>
                     <tr><td class="required">Travel End Date</td><td>Date</td><td>2026-09-09</td></tr>
                     <tr><td class="required">Booking Date</td><td>Date</td><td>2026-08-29</td></tr>
-                    <tr><td class="required">Status</td><td>Required</td><td>Confirmed / Cancelled</td></tr>
+                    <tr><td class="required">Status</td><td>Required</td><td>Confirmed / Cancelled / Rescheduled</td></tr>
+                    <tr><td>New Ticket No</td><td>Optional</td><td>TKT-1002 (Only for Rescheduled)</td></tr>
                 </tbody>
             </table>
         </div>
 
-        <div class="note">The Status column is required and must be either Confirmed or Cancelled. A cancelled booking does not earn a coupon, and any existing earned coupon is automatically reversed. A Client ID not yet registered is created automatically using that ID as the client name. Matching coupon rules are applied to Net Amount. Confirmed imported passengers automatically earn a coupon and ledger entry; it is released when the Travel Start Date has passed, otherwise it stays pending. Multiple passengers may share an S PNR; each passenger must have a unique Ticket No. Existing rows are updated by Ticket No without duplicating coupons.</div>
+        <div class="note">The Status column is required and must be either Confirmed, Cancelled, or Rescheduled. If Rescheduled, New Ticket No can be entered. A cancelled booking does not earn a coupon, and any existing earned coupon is automatically reversed. A Client ID not yet registered is created automatically using that ID as the client name. Matching coupon rules are applied to Net Amount. Confirmed imported passengers automatically earn a coupon and ledger entry; it is released when the Travel Start Date has passed, otherwise it stays pending. Multiple passengers may share an S PNR; each passenger must have a unique Ticket No. Existing rows are updated by Ticket No without duplicating coupons.</div>
     </div>
 </div>
 

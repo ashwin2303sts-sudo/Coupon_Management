@@ -657,7 +657,7 @@ def bookings(request):
         booking.setdefault("airline", "")
         booking.setdefault("fare_type", "ANY CLASS")
         b_stat = str(booking.get("status", "")).strip().lower()
-        if b_stat == "cancelled" or money(booking.get("net_amount", 0)) < 0:
+        if b_stat == "cancelled":
             booking["status"] = "Cancelled"
         elif b_stat == "rescheduled":
             booking["status"] = "Rescheduled"
@@ -670,7 +670,7 @@ def bookings(request):
             b_pct = money(matched.get("percentage", 0)) if matched else 0.0
         booking["points"] = round((b_amt * b_pct) / 100, 2)
     if q:
-        searchable_fields = ("s_pnr", "ticket_no", "passenger_name", "airline", "sector", "status")
+        searchable_fields = ("s_pnr", "ticket_no", "new_ticket_no", "passenger_name", "airline", "sector", "status")
         data = [
             b for b in data
             if q in " ".join(str(b.get(field, "")) for field in searchable_fields).casefold()
@@ -684,11 +684,11 @@ def bookings(request):
     ))
 
 
-def _cancel_booking_and_revoke_coupon(booking):
-    booking.status = "Cancelled"
-    booking.save()
-
-    coupon = Coupon.objects.select_for_update().filter(booking=booking).first()
+def _revoke_booking_coupon(booking, reason="Coupon Reversed"):
+    try:
+        coupon = Coupon.objects.select_for_update().filter(booking=booking).first()
+    except (TypeError, ValueError, Exception):
+        return False
     if coupon is None or (
         coupon.status == "EXPIRED"
         and decimal_value(coupon.amount) == 0
@@ -707,7 +707,7 @@ def _cancel_booking_and_revoke_coupon(booking):
             booking=booking,
             booking_ref=booking.pnr,
             coupon_code=coupon.coupon_code or coupon.id,
-            type="Coupon Reversed",
+            type=reason,
             amount=-earned_points,
             status="REVERSED",
             date=timezone.localdate(),
@@ -721,6 +721,12 @@ def _cancel_booking_and_revoke_coupon(booking):
         "amount", "redeemed_amount", "status", "is_released", "updated_at",
     ])
     return True
+
+
+def _cancel_booking_and_revoke_coupon(booking):
+    booking.status = "Cancelled"
+    booking.save(update_fields=["status", "updated_at"])
+    return _revoke_booking_coupon(booking, reason="Coupon Reversed")
 
 
 @admin_required
@@ -760,24 +766,53 @@ def add_booking(request):
         messages.error(request, "Net Amount must be a valid number.")
         return redirect("bookings")
 
-    # If Net Amount is negative, status is automatically Cancelled; if positive, Confirmed (or user-selected)
-    if parsed_net < 0:
-        status_val = "Cancelled"
-    else:
-        status_val = request.POST.get("status", "Confirmed").strip() or "Confirmed"
-        if status_val not in dict(Booking.STATUS_CHOICES):
-            status_val = "Confirmed"
+    status_val = request.POST.get("status", "Confirmed").strip() or "Confirmed"
+    if status_val not in dict(Booking.STATUS_CHOICES):
+        status_val = "Confirmed"
+
+    new_ticket_no = (
+        request.POST.get("new_ticket_no", "").strip()
+        if status_val == "Rescheduled"
+        else ""
+    )
+    if status_val == "Rescheduled" and not new_ticket_no:
+        messages.error(request, "New Ticket No is required when Status is Rescheduled.")
+        return redirect("bookings")
 
     if Booking.objects.filter(ticket_no=ticket_no).exists():
         messages.error(request, "This Ticket No already exists.")
         return redirect("bookings")
 
+    final_amount = parsed_net
+    target_status = status_val
+    target_new_ticket = new_ticket_no or None
+    if status_val == "Rescheduled":
+        old_booking = None
+        if new_ticket_no:
+            old_booking = Booking.objects.filter(ticket_no=new_ticket_no).first()
+        if not old_booking and ticket_no:
+            old_booking = Booking.objects.filter(ticket_no=ticket_no).first()
+        if old_booking:
+            if old_booking.status == "Rescheduled":
+                messages.error(request, f"Ticket {old_booking.ticket_no} has already been rescheduled and cannot be rescheduled again.")
+                return redirect("bookings")
+            old_amount = decimal_value(old_booking.net_amount or old_booking.base_amount)
+            final_amount = old_amount + parsed_net
+            old_booking.status = "Rescheduled"
+            old_booking.new_ticket_no = ticket_no
+            old_booking.save(update_fields=["status", "new_ticket_no", "updated_at"])
+            _revoke_booking_coupon(old_booking, reason="Coupon Rescheduled")
+        # The new ticket created from reschedule always has status Confirmed
+        target_status = "Confirmed"
+        target_new_ticket = None
+
     final_net, discount_pct, matched_rule = calculate_discounted_net(
-        parsed_net, required_fields["Airline Name"], required_fields["Class Type"]
+        final_amount, required_fields["Airline Name"], required_fields["Class Type"]
     )
     Booking.objects.create(
         pnr=required_fields["S PNR"],
         ticket_no=ticket_no,
+        new_ticket_no=target_new_ticket,
         client=client_record,
         passenger_name=required_fields["Passenger Name"],
         sector=required_fields["Sector"],
@@ -787,17 +822,17 @@ def add_booking(request):
         fare_type=required_fields["Class Type"],
         airline_pnr=required_fields["Airline PNR"],
         net_amount=decimal_value(final_net),
-        base_amount=decimal_value(parsed_net),
+        base_amount=decimal_value(final_amount),
         discount_percentage=decimal_value(discount_pct),
         travel_date=date_value(required_fields["Travel Start Date"]),
         end_date=date_value(required_fields["Travel End Date"]),
         booked_date=date_value(required_fields["Booking Date"]),
-        status=status_val,
+        status=target_status,
         is_auto=False,
         is_manual=True,
     )
     points_earned = ((decimal_value(parsed_net) * decimal_value(discount_pct)) / Decimal("100")).quantize(Decimal("0.01"))
-    messages.success(request, f"Booking added successfully (Status: {status_val}). Net Amount: ₹{money(final_net):,.2f}" + (f" (Rule: {money(discount_pct):g}% → {money(points_earned):,.2f} Points)" if matched_rule else ""))
+    messages.success(request, f"Booking added successfully (Status: {target_status}). Net Amount: ₹{money(final_net):,.2f}" + (f" (Rule: {money(discount_pct):g}% → {money(points_earned):,.2f} Points)" if matched_rule else ""))
     return redirect("bookings")
 
 
@@ -809,6 +844,17 @@ def edit_booking(request):
     if booking is None:
         messages.error(request, "Booking not found.")
         return redirect("bookings")
+
+    # Cancelled and Rescheduled bookings cannot be edited or reactivated
+    if booking.status == "Cancelled":
+        messages.error(request, "A cancelled booking cannot be changed to Confirmed or Rescheduled.")
+        return redirect("bookings")
+
+    # One-time reschedule lock: cannot edit an already rescheduled booking
+    if booking.status == "Rescheduled":
+        messages.error(request, "This booking has already been rescheduled and cannot be modified.")
+        return redirect("bookings")
+
     client_id = request.POST.get("client_id", "").strip()
     client_record = Customer.objects.filter(id=client_id).first()
     ticket_no = request.POST.get("ticket_no", "").strip()
@@ -839,19 +885,132 @@ def edit_booking(request):
         messages.error(request, "Net Amount must be a valid number.")
         return redirect("bookings")
 
-    if parsed_net < 0:
-        status_val = "Cancelled"
-    else:
-        status_val = request.POST.get("status", "Confirmed").strip() or "Confirmed"
-        if status_val not in dict(Booking.STATUS_CHOICES):
-            status_val = "Confirmed"
+    status_val = request.POST.get("status", "Confirmed").strip() or "Confirmed"
+    if status_val not in dict(Booking.STATUS_CHOICES):
+        status_val = "Confirmed"
+
+    new_ticket_no = (
+        request.POST.get("new_ticket_no", "").strip()
+        if status_val == "Rescheduled"
+        else ""
+    )
+    if status_val == "Rescheduled" and not new_ticket_no:
+        messages.error(request, "New Ticket No is required when Status is Rescheduled.")
+        return redirect("bookings")
+
+    if status_val == "Rescheduled" and new_ticket_no == booking.ticket_no:
+        messages.error(request, "New Ticket No must be different from current Ticket No.")
+        return redirect("bookings")
 
     if Booking.objects.filter(ticket_no=ticket_no).exclude(pk=booking.pk).exists():
         messages.error(request, "This Ticket No already exists.")
         return redirect("bookings")
+
+    if status_val == "Rescheduled":
+        # Check if the new ticket already exists in the system
+        existing_new_ticket = (
+            Booking.objects.filter(ticket_no=new_ticket_no)
+            .exclude(pk=booking.pk)
+            .first()
+        )
+        if existing_new_ticket:
+            if existing_new_ticket.status == "Rescheduled":
+                messages.error(
+                    request,
+                    f"Ticket '{new_ticket_no}' has already been rescheduled and cannot be used.",
+                )
+                return redirect("bookings")
+            if existing_new_ticket.status == "Cancelled":
+                messages.error(
+                    request,
+                    f"Ticket '{new_ticket_no}' is cancelled and cannot be used.",
+                )
+                return redirect("bookings")
+
+            # Link old ticket to existing new ticket:
+            old_amount = decimal_value(booking.net_amount or booking.base_amount)
+            new_amount = decimal_value(
+                existing_new_ticket.net_amount or existing_new_ticket.base_amount
+            )
+            # Old Ticket Amount + New Ticket Amount (subtract if negative, add if positive)
+            combined_amount = old_amount + new_amount
+            final_net, discount_pct, matched_rule = calculate_discounted_net(
+                combined_amount,
+                existing_new_ticket.airline,
+                existing_new_ticket.fare_type,
+            )
+
+            # Update old ticket:
+            booking.status = "Rescheduled"
+            booking.new_ticket_no = new_ticket_no
+            booking.save(update_fields=["status", "new_ticket_no", "updated_at"])
+            _revoke_booking_coupon(booking, reason="Coupon Rescheduled")
+
+            # Update existing new ticket:
+            existing_new_ticket.base_amount = decimal_value(combined_amount)
+            existing_new_ticket.net_amount = decimal_value(final_net)
+            existing_new_ticket.discount_percentage = decimal_value(discount_pct)
+            existing_new_ticket.status = "Confirmed"
+            existing_new_ticket.save(
+                update_fields=[
+                    "base_amount",
+                    "net_amount",
+                    "discount_percentage",
+                    "status",
+                    "updated_at",
+                ]
+            )
+
+            messages.success(
+                request,
+                f"Booking {booking.ticket_no} rescheduled. Ticket {new_ticket_no} updated to Net Amount: ₹{money(final_net):,.2f} (Status: Confirmed).",
+            )
+            return redirect("bookings")
+        else:
+            # Create the new ticket
+            old_amount = decimal_value(booking.net_amount or booking.base_amount)
+            combined_amount = old_amount + parsed_net
+            final_net, discount_pct, matched_rule = calculate_discounted_net(
+                combined_amount, values["airline"], values["fare_type"]
+            )
+
+            booking.status = "Rescheduled"
+            booking.new_ticket_no = new_ticket_no
+            booking.save(update_fields=["status", "new_ticket_no", "updated_at"])
+            _revoke_booking_coupon(booking, reason="Coupon Rescheduled")
+
+            Booking.objects.create(
+                pnr=booking.pnr,
+                ticket_no=new_ticket_no,
+                new_ticket_no=None,
+                client=client_record,
+                passenger_name=values["passenger_name"],
+                sector=values["sector"],
+                booking_type=values["booking_type"],
+                travel_type=values["travel_type"],
+                airline=values["airline"],
+                fare_type=values["fare_type"],
+                airline_pnr=values["airline_pnr"],
+                net_amount=decimal_value(final_net),
+                base_amount=decimal_value(combined_amount),
+                discount_percentage=decimal_value(discount_pct),
+                travel_date=date_value(values["travel_date"]),
+                end_date=date_value(values["end_date"]),
+                booked_date=date_value(values["booked_date"]),
+                status="Confirmed",
+                is_auto=False,
+                is_manual=True,
+            )
+            messages.success(
+                request,
+                f"Ticket {booking.ticket_no} rescheduled. New Ticket {new_ticket_no} created with status Confirmed (Net Amount: ₹{money(final_net):,.2f}).",
+            )
+            return redirect("bookings")
+
     final_net, discount_pct, matched_rule = calculate_discounted_net(parsed_net, values["airline"], values["fare_type"])
     booking.client = client_record
     booking.ticket_no = ticket_no
+    booking.new_ticket_no = None
     booking.passenger_name = values["passenger_name"]
     booking.sector = values["sector"]
     booking.booking_type = values["booking_type"]
@@ -886,6 +1045,12 @@ def delete_booking(request):
     booking = _resolve_booking(booking_id)
     if not booking:
         messages.error(request, "Booking not found.")
+        return redirect("bookings")
+    if booking.status == "Rescheduled":
+        messages.error(request, "A rescheduled booking cannot be cancelled.")
+        return redirect("bookings")
+    if booking.status == "Cancelled":
+        messages.info(request, "This booking is already cancelled.")
         return redirect("bookings")
     with transaction.atomic():
         _cancel_booking_and_revoke_coupon(booking)
@@ -1514,6 +1679,9 @@ def _canonical_excel_headers(headers):
         "bookeddate": "Booking Date",
         "bookingstatus": "Status",
         "status": "Status",
+        "newticketno": "New Ticket No",
+        "newticketnumber": "New Ticket No",
+        "newticket": "New Ticket No",
     }
     return [
         aliases.get(_normalise_excel_header(header), str(header or "").strip())
@@ -1616,7 +1784,6 @@ def excel_upload(request):
                 missing_values = [
                     header for header in required_headers
                     if (row.get(header) is None or not str(row.get(header)).strip())
-                    and not (header == "Status" and base_amount < 0)
                 ]
                 if missing_values:
                     row_errors.append(f"Row {row_number}: missing " + ", ".join(missing_values))
@@ -1645,23 +1812,29 @@ def excel_upload(request):
                     invalid_row_numbers.add(row_number)
                     continue
 
-                # Auto-status:
-                # If Net Amount < 0 -> automatically "Cancelled"
-                # If Net Amount >= 0 -> "Confirmed" or valid status from Excel
-                if base_amount < 0:
-                    booking_status = "Cancelled"
+                raw_status = row.get("Status")
+                if raw_status is not None and str(raw_status).strip():
+                    booking_status = _canonical_booking_status(raw_status)
+                    if booking_status is None:
+                        row_errors.append(
+                            f"Row {row_number}: Status must be Confirmed, Cancelled, or Rescheduled."
+                        )
+                        invalid_row_numbers.add(row_number)
+                        continue
                 else:
-                    raw_status = row.get("Status")
-                    if raw_status is not None and str(raw_status).strip():
-                        booking_status = _canonical_booking_status(raw_status)
-                        if booking_status is None:
-                            row_errors.append(
-                                f"Row {row_number}: Status must be Confirmed or Cancelled."
-                            )
-                            invalid_row_numbers.add(row_number)
-                            continue
-                    else:
-                        booking_status = "Confirmed"
+                    booking_status = "Confirmed"
+
+                raw_new_ticket = str(row.get("New Ticket No") or "").strip()
+                if booking_status == "Rescheduled":
+                    if not raw_new_ticket:
+                        row_errors.append(
+                            f"Row {row_number}: New Ticket No is required when Status is Rescheduled."
+                        )
+                        invalid_row_numbers.add(row_number)
+                        continue
+                    new_ticket_no = raw_new_ticket
+                else:
+                    new_ticket_no = None
 
                 ticket_no = str(row["Ticket No"]).strip()
                 ticket_no_key = ticket_no.casefold()
@@ -1669,10 +1842,45 @@ def excel_upload(request):
                     duplicate_skipped += 1
                     continue
 
+                calculated_base_amount = base_amount
+                target_status = booking_status or "Confirmed"
+                if booking_status == "Rescheduled":
+                    old_booking = None
+                    if new_ticket_no:
+                        try:
+                            old_booking = Booking.objects.filter(ticket_no=new_ticket_no).first()
+                        except Exception:
+                            old_booking = None
+                    if not old_booking and ticket_no_key in existing_ticket_nos:
+                        old_booking = existing_bookings.get(ticket_no)
+                    if not old_booking and new_ticket_no:
+                        prev_row = next((r for r in rows_to_import if r["ticket_no"].casefold() == new_ticket_no.casefold()), None)
+                        if prev_row:
+                            old_amount = decimal_value(prev_row["base_amount"])
+                            calculated_base_amount = old_amount + base_amount
+                    if old_booking:
+                        if old_booking.status == "Rescheduled":
+                            row_errors.append(f"Row {row_number}: Ticket No {old_booking.ticket_no} has already been rescheduled and cannot be rescheduled again.")
+                            invalid_row_numbers.add(row_number)
+                            continue
+                        old_amount = decimal_value(old_booking.net_amount or old_booking.base_amount)
+                        calculated_base_amount = old_amount + base_amount
+                        if old_booking.ticket_no != ticket_no:
+                            try:
+                                old_booking.status = "Rescheduled"
+                                old_booking.new_ticket_no = ticket_no
+                                old_booking.save(update_fields=["status", "new_ticket_no", "updated_at"])
+                                _revoke_booking_coupon(old_booking, reason="Coupon Rescheduled")
+                            except Exception:
+                                pass
+                    # Requirement 2: New ticket status must be Confirmed
+                    target_status = "Confirmed"
+
                 imported_ticket_nos.add(ticket_no_key)
                 rows_to_import.append({
                     "s_pnr": spnr,
                     "ticket_no": ticket_no,
+                    "new_ticket_no": new_ticket_no if target_status == "Rescheduled" else None,
                     "is_update": ticket_no_key in existing_ticket_nos,
                     "client_id": str(row["Client ID"]).strip(),
                     "client": str(row.get("Client") or row["Client ID"]).strip(),
@@ -1683,8 +1891,9 @@ def excel_upload(request):
                     "airline": str(row["Airline Name"]).strip(),
                     "fare_type": str(row["Class Type"]).strip(),
                     "airline_pnr": str(row["Airline PNR"]).strip(),
-                    "base_amount": base_amount,
-                    "status": booking_status or "Confirmed",
+                    "base_amount": calculated_base_amount,
+                    "status": target_status,
+                    "original_status": booking_status,
                     **parsed_dates,
                 })
 
@@ -1703,9 +1912,9 @@ def excel_upload(request):
 
             if is_scan:
                 total_passengers = len(rows_to_import)
-                total_confirmed = sum(1 for r in rows_to_import if r["status"] == "Confirmed")
-                total_cancelled = sum(1 for r in rows_to_import if r["status"] == "Cancelled")
-                total_rescheduled = sum(1 for r in rows_to_import if r["status"] == "Rescheduled")
+                total_confirmed = sum(1 for r in rows_to_import if r.get("original_status") == "Confirmed")
+                total_cancelled = sum(1 for r in rows_to_import if r.get("original_status") == "Cancelled")
+                total_rescheduled = sum(1 for r in rows_to_import if r.get("original_status") == "Rescheduled")
                 total_net_amount = sum((r["base_amount"] for r in rows_to_import), Decimal("0"))
                 return JsonResponse({
                     "success": True,
@@ -1744,6 +1953,7 @@ def excel_upload(request):
                         new_bookings.append(Booking(
                             pnr=row["s_pnr"],
                             ticket_no=row["ticket_no"],
+                            new_ticket_no=row.get("new_ticket_no"),
                             client=customer,
                             passenger_name=row["passenger_name"],
                             sector=row["sector"],
@@ -1766,6 +1976,7 @@ def excel_upload(request):
 
                     booking.client = customer
                     booking.ticket_no = row["ticket_no"]
+                    booking.new_ticket_no = row.get("new_ticket_no")
                     booking.passenger_name = row["passenger_name"]
                     booking.sector = row["sector"]
                     booking.travel_date = row["travel_date"]
@@ -1786,7 +1997,7 @@ def excel_upload(request):
                         _cancel_booking_and_revoke_coupon(booking)
                     else:
                         booking.save(update_fields=[
-                            "client", "ticket_no", "passenger_name", "sector",
+                            "client", "ticket_no", "new_ticket_no", "passenger_name", "sector",
                             "travel_date", "end_date", "booked_date", "net_amount",
                             "base_amount", "discount_percentage", "airline", "fare_type",
                             "airline_pnr", "booking_type", "travel_type", "status",
@@ -1921,6 +2132,7 @@ def download_excel_template(request):
         "Travel End Date",
         "Booking Date",
         "Status",
+        "New Ticket No",
     ]
     ws.append(headers)
 

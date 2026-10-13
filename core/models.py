@@ -190,6 +190,12 @@ class Booking(models.Model):
         default="Confirmed"
     )
 
+    new_ticket_no = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True
+    )
+
     is_auto = models.BooleanField(
         db_column="auto",
         default=False

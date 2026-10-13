@@ -9,7 +9,7 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.messages.constants import ERROR, SUCCESS
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.template.loader import get_template, render_to_string
 from django.urls import resolve
 
@@ -22,6 +22,8 @@ from .views import (
     _filter_passengers_by_name,
     _parse_flat_price_range,
     add_booking,
+    edit_booking,
+    delete_booking,
     calculate_discounted_net,
     download_excel_template,
     excel_upload,
@@ -348,7 +350,7 @@ class ExcelUploadMessageTests(SimpleTestCase):
         self.assertEqual(response.status_code, 302)
         messages = list(request._messages)
         self.assertEqual(messages[0].message, "Something Went Wrong")
-        self.assertIn("Row 2: Status must be Confirmed or Cancelled.", messages[1].message)
+        self.assertIn("Row 2: Status must be Confirmed, Cancelled, or Rescheduled.", messages[1].message)
 
     @patch("core.views.calculate_discounted_net", return_value=(Decimal("90.00"), Decimal("10"), {}))
     @patch("core.views.Ledger.objects.bulk_create")
@@ -563,7 +565,7 @@ class ExcelUploadMessageTests(SimpleTestCase):
         response = add_booking(request)
         self.assertEqual(response.status_code, 302)
         booking = create_booking.call_args.kwargs
-        self.assertEqual(booking["status"], "Cancelled")
+        self.assertEqual(booking["status"], "Confirmed")
         self.assertEqual(booking["net_amount"], Decimal("-800.00"))
         self.assertEqual(booking["base_amount"], Decimal("-800.00"))
 
@@ -623,7 +625,7 @@ class ExcelUploadMessageTests(SimpleTestCase):
         response = excel_upload(request)
         self.assertEqual(response.status_code, 302)
         created_bookings = booking_bulk_create.call_args.args[0]
-        self.assertEqual(created_bookings[0].status, "Cancelled")
+        self.assertEqual(created_bookings[0].status, "Confirmed")
         self.assertEqual(created_bookings[0].net_amount, Decimal("-500.00"))
         coupon_bulk_create.assert_not_called()
 
@@ -695,12 +697,13 @@ class ExcelUploadMessageTests(SimpleTestCase):
             "S PNR", "Client ID", "Ticket No", "Passenger Name", "Sector", "Booking Type",
             "Travel Type", "Airline Name", "Airline Type", "Airline PNR",
             "Net Amount", "Travel Start Date", "Travel End Date", "Booking Date", "Status",
+            "New Ticket No",
         ]
         rows = [
-            ["SPNR-1", "CL-1", "TKT-1", "Pax 1", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P1", "1500.00", "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed"],
-            ["SPNR-2", "CL-1", "TKT-2", "Pax 2", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P2", "-500.00", "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed"],
-            ["SPNR-3", "CL-1", "TKT-3", "Pax 3", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P3", "2000.00", "2026-10-20", "2026-10-20", "2026-10-09", "Rescheduled"],
-            ["SPNR-4", "CL-1", "TKT-3", "Pax 3 Dup", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P4", "2000.00", "2026-10-20", "2026-10-20", "2026-10-09", "Rescheduled"],
+            ["SPNR-1", "CL-1", "TKT-1", "Pax 1", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P1", "1500.00", "2026-10-20", "2026-10-20", "2026-10-09", "Confirmed", ""],
+            ["SPNR-2", "CL-1", "TKT-2", "Pax 2", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P2", "-500.00", "2026-10-20", "2026-10-20", "2026-10-09", "Cancelled", ""],
+            ["SPNR-3", "CL-1", "TKT-3", "Pax 3", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P3", "2000.00", "2026-10-20", "2026-10-20", "2026-10-09", "Rescheduled", "TKT-NEW-3"],
+            ["SPNR-4", "CL-1", "TKT-3", "Pax 3 Dup", "DEL-BOM", "Web", "One Way", "AI", "Economy", "P4", "2000.00", "2026-10-20", "2026-10-20", "2026-10-09", "Rescheduled", "TKT-NEW-3"],
         ]
         workbook = load_workbook.return_value
         _exclude.return_value.values_list.return_value = []
@@ -813,6 +816,7 @@ class ExcelUploadMessageTests(SimpleTestCase):
                 "Travel End Date",
                 "Booking Date",
                 "Status",
+                "New Ticket No",
             )],
         )
 
@@ -911,5 +915,471 @@ class CouponAvailabilityTimingTests(SimpleTestCase):
         self.assertEqual(amount, Decimal("-450.50"))
         self.assertEqual(pct, Decimal("0"))
         self.assertIsNone(rule)
+
+
+class BookingRescheduledTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch("core.views.Booking.objects.create")
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("5000"), Decimal("0"), None))
+    def test_add_booking_rescheduled_saves_new_ticket_no(
+        self, mock_discount, mock_cust_filter, mock_booking_filter, mock_booking_create
+    ):
+        mock_cust_filter.return_value.first.return_value = SimpleNamespace(id="CUST-1", name="Test")
+        mock_booking_filter.return_value.exists.return_value = False
+
+        request = self.factory.post(
+            "/bookings/add/",
+            {
+                "s_pnr": "PNR-RESCHED",
+                "ticket_no": "TCK-OLD-001",
+                "client_id": "CUST-1",
+                "passenger_name": "Test Passenger",
+                "sector": "MAA - DEL",
+                "booking_type": "Web Booking",
+                "travel_type": "One Way",
+                "airline": "Air India",
+                "fare_type": "Economy",
+                "airline_pnr": "AIRPNR-1",
+                "net_amount": "5000",
+                "travel_date": "2026-10-20",
+                "end_date": "2026-10-25",
+                "booked_date": "2026-10-13",
+                "status": "Rescheduled",
+                "new_ticket_no": "TCK-NEW-001",
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = add_booking(request)
+        self.assertEqual(response.status_code, 302)
+        mock_booking_create.assert_called_once()
+        _, kwargs = mock_booking_create.call_args
+        self.assertEqual(kwargs["status"], "Confirmed")
+
+    @patch("core.views.Booking.objects.create")
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("5000"), Decimal("0"), None))
+    def test_add_booking_confirmed_ignores_new_ticket_no(
+        self, mock_discount, mock_cust_filter, mock_booking_filter, mock_booking_create
+    ):
+        mock_cust_filter.return_value.first.return_value = SimpleNamespace(id="CUST-1", name="Test")
+        mock_booking_filter.return_value.exists.return_value = False
+
+        request = self.factory.post(
+            "/bookings/add/",
+            {
+                "s_pnr": "PNR-CONF",
+                "ticket_no": "TCK-CONF-001",
+                "client_id": "CUST-1",
+                "passenger_name": "Test Passenger",
+                "sector": "MAA - DEL",
+                "booking_type": "Web Booking",
+                "travel_type": "One Way",
+                "airline": "Air India",
+                "fare_type": "Economy",
+                "airline_pnr": "AIRPNR-2",
+                "net_amount": "5000",
+                "travel_date": "2026-10-20",
+                "end_date": "2026-10-25",
+                "booked_date": "2026-10-13",
+                "status": "Confirmed",
+                "new_ticket_no": "TCK-SHOULD-BE-IGNORED",
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = add_booking(request)
+        self.assertEqual(response.status_code, 302)
+        mock_booking_create.assert_called_once()
+        _, kwargs = mock_booking_create.call_args
+        self.assertEqual(kwargs["status"], "Confirmed")
+        self.assertIsNone(kwargs["new_ticket_no"])
+
+    def test_booking_template_has_new_ticket_field_and_disabled_state(self):
+        html = render_to_string(
+            "bookings.html",
+            {
+                "bookings": [{
+                    "booking_id": "1",
+                    "s_pnr": "PNR001",
+                    "ticket_no": "TK001",
+                    "new_ticket_no": "TK002",
+                    "passenger_name": "Passenger One",
+                    "client_id": "C1",
+                    "status": "Rescheduled",
+                    "net_amount": 1000,
+                    "points": 50,
+                }],
+                "customers": [],
+                "airlines": [],
+                "airline_types": [],
+                "booking_methods": [],
+                "travel_types": [],
+                "rules": [],
+                "rules_json": "[]",
+                "today": "2026-10-13",
+            },
+        )
+        self.assertIn("NEW TICKET NO", html)
+        self.assertIn('id="addNewTicketNo"', html)
+        self.assertIn('id="editNewTicketNo"', html)
+        self.assertIn("disabled", html)
+        self.assertIn("updateAddNewTicketState", html)
+        self.assertIn("updateEditNewTicketState", html)
+
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("90.00"), Decimal("10"), {}))
+    @patch("core.views.Ledger.objects.bulk_create")
+    @patch("core.views.Coupon.objects.bulk_create")
+    @patch("core.views.Coupon.objects.filter")
+    @patch("core.views.Booking.objects.select_related")
+    @patch("core.views.Booking.objects.select_for_update")
+    @patch("core.views.Booking.objects.bulk_create")
+    @patch(
+        "core.views.Customer.objects.in_bulk",
+        return_value={"CL-1001": Customer(id="CL-1001", name="Client")},
+    )
+    @patch("core.views.Booking.objects.exclude")
+    @patch("core.views.transaction.atomic", return_value=nullcontext())
+    @patch("openpyxl.load_workbook")
+    def test_excel_upload_rescheduled_sets_new_ticket_no(
+        self,
+        load_workbook,
+        _atomic,
+        _exclude,
+        _customers,
+        booking_bulk_create,
+        _select_for_update,
+        imported_bookings_query,
+        existing_coupons_query,
+        coupon_bulk_create,
+        ledger_bulk_create,
+        _calculate_discount,
+        mock_booking_filter,
+    ):
+        headers = [
+            "S PNR", "Client ID", "Ticket No", "Passenger Name", "Sector", "Booking Type",
+            "Trip Type", "Airline Name", "Class Type", "Airline PNR",
+            "Net Amount", "Travel Start Date", "Travel End Date", "Booking Date", "Status",
+            "New Ticket No",
+        ]
+        row_rescheduled = [
+            "SPNR78901", "CL-1001", "TKT-1001", "Anita Rao", "MAA-DXB", "Web Booking",
+            "Round Trip", "AirAsia", "Economy Class", "6E-XY789", "100",
+            "2026-10-07", "2026-10-11", "2026-10-01", "Rescheduled",
+            "TKT-NEW-9999",
+        ]
+        workbook = load_workbook.return_value
+        _exclude.return_value.values_list.return_value = []
+        workbook.active.__getitem__.return_value = [
+            SimpleNamespace(value=h) for h in headers
+        ]
+        workbook.active.iter_rows.return_value = [tuple(row_rescheduled)]
+        imported_bookings_query.return_value.filter.return_value = []
+        existing_coupons_query.return_value.values_list.return_value = []
+
+        request = self.factory.post(
+            "/excel-upload/",
+            {"excel_file": SimpleUploadedFile("bookings.xlsx", b"workbook")},
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+
+        response = excel_upload(request)
+        self.assertEqual(response.status_code, 302)
+        booking_bulk_create.assert_called_once()
+        created_bookings = booking_bulk_create.call_args[0][0]
+        self.assertEqual(len(created_bookings), 1)
+        self.assertEqual(created_bookings[0].status, "Confirmed")
+
+    @patch("core.views.Booking.objects.exclude")
+    @patch("openpyxl.load_workbook")
+    def test_excel_upload_rescheduled_without_new_ticket_fails_with_error(
+        self, load_workbook, _exclude
+    ):
+        headers = [
+            "S PNR", "Client ID", "Ticket No", "Passenger Name", "Sector", "Booking Type",
+            "Trip Type", "Airline Name", "Class Type", "Airline PNR",
+            "Net Amount", "Travel Start Date", "Travel End Date", "Booking Date", "Status",
+            "New Ticket No",
+        ]
+        row_missing_new_ticket = [
+            "SPNR78901", "CL-1001", "TKT-1001", "Anita Rao", "MAA-DXB", "Web Booking",
+            "Round Trip", "AirAsia", "Economy Class", "6E-XY789", "100",
+            "2026-10-07", "2026-10-11", "2026-10-01", "Rescheduled",
+            "",
+        ]
+        workbook = load_workbook.return_value
+        _exclude.return_value.values_list.return_value = []
+        workbook.active.__getitem__.return_value = [
+            SimpleNamespace(value=h) for h in headers
+        ]
+        workbook.active.iter_rows.return_value = [tuple(row_missing_new_ticket)]
+
+        request = self.factory.post(
+            "/excel-upload/",
+            {"excel_file": SimpleUploadedFile("bookings.xlsx", b"workbook")},
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+
+        response = excel_upload(request)
+        self.assertEqual(response.status_code, 302)
+        messages = list(request._messages)
+        self.assertEqual(messages[0].message, "Something Went Wrong")
+        self.assertIn("Row 2: New Ticket No is required when Status is Rescheduled.", messages[1].message)
+
+    @patch("core.views.Booking.objects.create")
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("6000"), Decimal("0"), None))
+    def test_add_booking_rescheduled_accumulates_old_ticket_amount_positive(
+        self, mock_discount, mock_cust_filter, mock_booking_filter, mock_booking_create
+    ):
+        mock_cust_filter.return_value.first.return_value = SimpleNamespace(id="CUST-1", name="Test")
+        # Simulate old booking exists with 5000
+        old_booking = SimpleNamespace(ticket_no="TCK-OLD-001", net_amount=Decimal("5000"), base_amount=Decimal("5000"), status="Confirmed", save=Mock())
+        mock_booking_filter.return_value.first.return_value = old_booking
+        mock_booking_filter.return_value.exists.return_value = False
+
+        request = self.factory.post(
+            "/bookings/add/",
+            {
+                "s_pnr": "PNR-RESCHED",
+                "ticket_no": "TCK-NEW-002",
+                "client_id": "CUST-1",
+                "passenger_name": "Test Passenger",
+                "sector": "MAA - DEL",
+                "booking_type": "Web Booking",
+                "travel_type": "One Way",
+                "airline": "Air India",
+                "fare_type": "Economy",
+                "airline_pnr": "AIRPNR-1",
+                "net_amount": "1000",
+                "travel_date": "2026-10-20",
+                "end_date": "2026-10-25",
+                "booked_date": "2026-10-13",
+                "status": "Rescheduled",
+                "new_ticket_no": "TCK-OLD-001",
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = add_booking(request)
+        self.assertEqual(response.status_code, 302)
+        mock_booking_create.assert_called_once()
+        _, kwargs = mock_booking_create.call_args
+        self.assertEqual(kwargs["status"], "Confirmed")
+        self.assertEqual(kwargs["base_amount"], Decimal("6000"))
+
+    @patch("core.views.Booking.objects.create")
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("4500"), Decimal("0"), None))
+    def test_add_booking_rescheduled_accumulates_old_ticket_amount_negative(
+        self, mock_discount, mock_cust_filter, mock_booking_filter, mock_booking_create
+    ):
+        mock_cust_filter.return_value.first.return_value = SimpleNamespace(id="CUST-1", name="Test")
+        # Simulate old booking exists with 5000
+        old_booking = SimpleNamespace(ticket_no="TCK-OLD-001", net_amount=Decimal("5000"), base_amount=Decimal("5000"), status="Confirmed", save=Mock())
+        mock_booking_filter.return_value.first.return_value = old_booking
+        mock_booking_filter.return_value.exists.return_value = False
+
+        request = self.factory.post(
+            "/bookings/add/",
+            {
+                "s_pnr": "PNR-RESCHED",
+                "ticket_no": "TCK-NEW-003",
+                "client_id": "CUST-1",
+                "passenger_name": "Test Passenger",
+                "sector": "MAA - DEL",
+                "booking_type": "Web Booking",
+                "travel_type": "One Way",
+                "airline": "Air India",
+                "fare_type": "Economy",
+                "airline_pnr": "AIRPNR-1",
+                "net_amount": "-500",
+                "travel_date": "2026-10-20",
+                "end_date": "2026-10-25",
+                "booked_date": "2026-10-13",
+                "status": "Rescheduled",
+                "new_ticket_no": "TCK-OLD-001",
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = add_booking(request)
+        self.assertEqual(response.status_code, 302)
+        mock_booking_create.assert_called_once()
+        _, kwargs = mock_booking_create.call_args
+        self.assertEqual(kwargs["status"], "Confirmed")
+        self.assertEqual(kwargs["base_amount"], Decimal("4500"))
+
+    @patch("core.views._resolve_booking")
+    def test_edit_booking_already_rescheduled_cannot_be_modified(self, mock_resolve):
+        mock_resolve.return_value = SimpleNamespace(status="Rescheduled", ticket_no="TCK-LOCKED")
+        request = self.factory.post("/bookings/edit/", {"booking_id": "123"})
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = edit_booking(request)
+        self.assertEqual(response.status_code, 302)
+        messages = list(request._messages)
+        self.assertTrue(any("already been rescheduled and cannot be modified" in m.message for m in messages))
+
+    @patch("core.views._resolve_booking")
+    def test_delete_booking_already_rescheduled_cannot_be_cancelled(self, mock_resolve):
+        mock_resolve.return_value = SimpleNamespace(status="Rescheduled", ticket_no="TCK-LOCKED")
+        request = self.factory.post("/bookings/delete/", {"booking_id": "123"})
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = delete_booking(request)
+        self.assertEqual(response.status_code, 302)
+        messages = list(request._messages)
+        self.assertTrue(any("rescheduled booking cannot be cancelled" in m.message for m in messages))
+
+    @patch("core.views.Booking.objects.create")
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    @patch("core.views._resolve_booking")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("6500"), Decimal("0"), None))
+    def test_edit_booking_reschedules_ticket_creates_new_confirmed_ticket(
+        self, mock_discount, mock_resolve, mock_cust_filter, mock_booking_filter, mock_booking_create
+    ):
+        old_booking = SimpleNamespace(
+            pk=10,
+            pnr="SPNR-OLD",
+            ticket_no="TCK-OLD",
+            net_amount=Decimal("5000"),
+            base_amount=Decimal("5000"),
+            status="Confirmed",
+            new_ticket_no=None,
+            save=Mock(),
+        )
+        mock_resolve.return_value = old_booking
+        mock_cust_filter.return_value.first.return_value = SimpleNamespace(id="CUST-1", name="Test")
+        mock_booking_filter.return_value.exists.return_value = False
+        mock_booking_filter.return_value.exclude.return_value.exists.return_value = False
+        mock_booking_filter.return_value.exclude.return_value.first.return_value = None
+
+        request = self.factory.post(
+            "/bookings/edit/",
+            {
+                "booking_id": "10",
+                "ticket_no": "TCK-OLD",
+                "client_id": "CUST-1",
+                "passenger_name": "Test Passenger",
+                "sector": "MAA - DEL",
+                "booking_type": "Web Booking",
+                "travel_type": "One Way",
+                "airline": "Air India",
+                "fare_type": "Economy",
+                "airline_pnr": "AIRPNR-1",
+                "net_amount": "1500",
+                "travel_date": "2026-10-20",
+                "end_date": "2026-10-25",
+                "booked_date": "2026-10-13",
+                "status": "Rescheduled",
+                "new_ticket_no": "TCK-NEW-8888",
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = edit_booking(request)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(old_booking.status, "Rescheduled")
+        self.assertEqual(old_booking.new_ticket_no, "TCK-NEW-8888")
+        old_booking.save.assert_called_once()
+        mock_booking_create.assert_called_once()
+        _, kwargs = mock_booking_create.call_args
+        self.assertEqual(kwargs["ticket_no"], "TCK-NEW-8888")
+        self.assertEqual(kwargs["status"], "Confirmed")
+        self.assertEqual(kwargs["base_amount"], Decimal("6500"))
+
+    @patch("core.views.Booking.objects.filter")
+    @patch("core.views.Customer.objects.filter")
+    @patch("core.views._resolve_booking")
+    @patch("core.views.calculate_discounted_net", return_value=(Decimal("4000"), Decimal("0"), None))
+    def test_edit_booking_reschedules_to_existing_ticket_accumulates_amount_and_confirms(
+        self, mock_discount, mock_resolve, mock_cust_filter, mock_booking_filter
+    ):
+        # John Don (old ticket: 6000)
+        john_booking = SimpleNamespace(
+            pk=1,
+            pnr="SPNR1102",
+            ticket_no="TCK-1102",
+            net_amount=Decimal("6000"),
+            base_amount=Decimal("6000"),
+            status="Confirmed",
+            new_ticket_no=None,
+            save=Mock(),
+        )
+        # Salamon (new ticket already in DB: -2000)
+        salamon_booking = SimpleNamespace(
+            pk=2,
+            pnr="SPNR1101",
+            ticket_no="TCK-11012",
+            airline="Air India",
+            fare_type="Economy",
+            net_amount=Decimal("-2000"),
+            base_amount=Decimal("-2000"),
+            status="Confirmed",
+            new_ticket_no=None,
+            save=Mock(),
+        )
+        mock_resolve.return_value = john_booking
+        mock_cust_filter.return_value.first.return_value = SimpleNamespace(id="CL-1001", name="Client")
+        mock_booking_filter.return_value.exclude.return_value.exists.return_value = False
+        mock_booking_filter.return_value.exclude.return_value.first.return_value = salamon_booking
+
+        request = self.factory.post(
+            "/bookings/edit/",
+            {
+                "booking_id": "1",
+                "ticket_no": "TCK-1102",
+                "client_id": "CL-1001",
+                "passenger_name": "John Don",
+                "sector": "MAA-BOM",
+                "booking_type": "Web Booking",
+                "travel_type": "Round Trip",
+                "airline": "Air India",
+                "fare_type": "Economy",
+                "airline_pnr": "65432fsaaSSaa",
+                "net_amount": "6000",
+                "travel_date": "2026-10-14",
+                "end_date": "2026-10-21",
+                "booked_date": "2026-10-13",
+                "status": "Rescheduled",
+                "new_ticket_no": "TCK-11012",
+            },
+        )
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = edit_booking(request)
+        self.assertEqual(response.status_code, 302)
+        # John Don is marked Rescheduled with link to Salamon
+        self.assertEqual(john_booking.status, "Rescheduled")
+        self.assertEqual(john_booking.new_ticket_no, "TCK-11012")
+        john_booking.save.assert_called_once()
+        # Salamon's net amount is updated: 6000 + (-2000) = 4000
+        self.assertEqual(salamon_booking.status, "Confirmed")
+        self.assertEqual(salamon_booking.base_amount, Decimal("4000"))
+        self.assertEqual(salamon_booking.net_amount, Decimal("4000"))
+        salamon_booking.save.assert_called_once()
+
+    @patch("core.views._resolve_booking")
+    def test_edit_booking_cancelled_cannot_be_modified(self, mock_resolve):
+        mock_resolve.return_value = SimpleNamespace(status="Cancelled", ticket_no="TCK-CANC")
+        request = self.factory.post("/bookings/edit/", {"booking_id": "99"})
+        request.session = {"user_id": "admin"}
+        request._messages = FallbackStorage(request)
+        response = edit_booking(request)
+        self.assertEqual(response.status_code, 302)
+        messages = list(request._messages)
+        self.assertTrue(any("cancelled booking cannot be changed" in m.message for m in messages))
 
 

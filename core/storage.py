@@ -243,6 +243,7 @@ def read(name):
                     "s_pnr": booking.pnr,
                     "pnr": booking.pnr,
                     "ticket_no": booking.ticket_no or "",
+                    "new_ticket_no": booking.new_ticket_no or "",
 
                     "client": booking.client.name if booking.client else "",
                     "client_id": booking.client_id,
@@ -280,7 +281,7 @@ def read(name):
 
                     "status": (
                         "Cancelled"
-                        if (str(booking.status or "").strip().lower() == "cancelled" or money(booking.net_amount) < 0)
+                        if str(booking.status or "").strip().lower() == "cancelled"
                         else ("Rescheduled" if str(booking.status or "").strip().lower() == "rescheduled" else "Confirmed")
                     ),
                     "auto": booking.is_auto,
