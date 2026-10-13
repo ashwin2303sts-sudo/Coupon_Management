@@ -272,6 +272,7 @@ def read(name):
                     "net_amount": money(booking.net_amount),
                     "base_amount": money(booking.base_amount),
                     "discount_percentage": money(booking.discount_percentage),
+                    "points": round((money(booking.net_amount) * money(booking.discount_percentage)) / 100, 2),
 
                     "email": booking.email or "",
                     "mobile": booking.mobile or "",

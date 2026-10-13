@@ -663,6 +663,12 @@ def bookings(request):
             booking["status"] = "Rescheduled"
         else:
             booking["status"] = "Confirmed"
+        b_amt = money(booking.get("net_amount", 0))
+        b_pct = money(booking.get("discount_percentage", 0))
+        if b_pct <= 0 and b_amt > 0:
+            matched = _find_matching_rule(booking.get("airline"), booking.get("fare_type"), b_amt)
+            b_pct = money(matched.get("percentage", 0)) if matched else 0.0
+        booking["points"] = round((b_amt * b_pct) / 100, 2)
     if q:
         searchable_fields = ("s_pnr", "ticket_no", "passenger_name", "airline", "sector", "status")
         data = [
