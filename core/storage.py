@@ -800,6 +800,9 @@ def write(name, value):
                         "status",
                         "Confirmed"
                     ),
+                    "new_ticket_no": row.get(
+                        "new_ticket_no"
+                    ) or None,
 
                     "booking_type": row.get(
                         "booking_type",
